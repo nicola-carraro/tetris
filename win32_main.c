@@ -1,8 +1,21 @@
+#include "tetris.c"
+
+#define COBJMACROS
+
+#pragma warning(push, 0)
 #include <windows.h>
+#include <initguid.h>
+#include <d3d11.h>
+#include <dxgi1_2.h>
+#include <dxgi1_3.h>
+#include <dxgidebug.h>
+#pragma warning(pop)
+
+#include "win32.c"
 
 #pragma comment(lib, "User32")
-
-#define TTS_UNREFERENCED(a) a
+#pragma comment(lib, "D3D11")
+#pragma comment(lib, "DXGI")
 
 LRESULT windowProc(
     HWND window,
@@ -51,8 +64,10 @@ int WinMain(
         windowClass.hIconSm = 0;
     }
 
+    Win32 win32 = {0};
+
     if (RegisterClassExA(&windowClass)) {
-        HWND window = CreateWindowExA(
+        win32.window = CreateWindowExA(
             WS_EX_NOREDIRECTIONBITMAP,
             className,
             "Tetris",
@@ -67,8 +82,10 @@ int WinMain(
             0
         );
 
-        if (window) {
-            ShowWindow(window, showCommand);
+        if (win32.window && win32D3d11Init(&win32)) {
+            ShowWindow(win32.window, showCommand);
+
+            win32D3d11Render(&win32);
 
             MSG message = {0};
             BOOL ok = 0;
