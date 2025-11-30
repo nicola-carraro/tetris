@@ -1,10 +1,15 @@
 typedef struct {
+    HWND window;
+    HANDLE threadReady;
     ID3D11Device *device;
     ID3D11DeviceContext *deviceContext;
     ID3D11RenderTargetView *renderTargetView;
     IDXGISwapChain1 *swapChain;
-    HWND window;
+    UINT width;
+    UINT height;
 } Win32;
+
+static DWORD GlobalThreadId = 0;
 
 BOOL win32D3d11Init(Win32 *win32) {
     HRESULT hr = E_FAIL;
@@ -98,12 +103,20 @@ BOOL win32D3d11Init(Win32 *win32) {
     return ok;
 }
 
-void win32D3d11Render(Win32 *win32) {
-    ID3D11Texture2D *renderTarget = 0;
+void win32D3d11Render(Win32 *win32, UINT newWidth, UINT newHeight) {
+    if (!win32->renderTargetView || win32->width != newWidth || win32->height != newHeight) {
+		ID3D11DeviceContext_ClearState(win32->deviceContext);
+        if (win32->renderTargetView) {
+            ID3D11RenderTargetView_Release(win32->renderTargetView);
+        }
+        IDXGISwapChain1_ResizeBuffers(win32->swapChain, 0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
 
-    if (SUCCEEDED(IDXGISwapChain1_GetBuffer(win32->swapChain, 0, &IID_ID3D11Texture2D, (void **)&renderTarget))) {
-        ID3D11Device_CreateRenderTargetView(win32->device, (ID3D11Resource *) renderTarget, 0, &win32->renderTargetView);
-        ID3D11Texture2D_Release(renderTarget);
+        ID3D11Texture2D *renderTarget = 0;
+
+        if (SUCCEEDED(IDXGISwapChain1_GetBuffer(win32->swapChain, 0, &IID_ID3D11Texture2D, (void **)&renderTarget))) {
+            ID3D11Device_CreateRenderTargetView(win32->device, (ID3D11Resource *) renderTarget, 0, &win32->renderTargetView);
+            ID3D11Texture2D_Release(renderTarget);
+        }
     }
 
     float backgroundColor[4] = {1.0f, 0.0f, 0.0f, 1.0f};

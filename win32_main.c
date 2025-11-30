@@ -29,12 +29,51 @@ LRESULT windowProc(
             PostQuitMessage(0);
         } break;
 
+        case WM_CHAR: {
+            PostThreadMessageA(GlobalThreadId, message, wParam, lParam);
+        } break;
+
         default: {
             result = DefWindowProcA(window, message, wParam, lParam);
         }
     }
 
     return result;
+}
+
+DWORD threadProc(LPVOID parameter) {
+    Win32 *win32 = (Win32 *)parameter;
+
+    if (win32D3d11Init(win32)) {
+        MSG message = {0};
+        // Create message queue and signal it to the window thread
+        {
+            PeekMessage(&message, 0, WM_USER, WM_USER, PM_NOREMOVE);
+            SetEvent(win32->threadReady);
+        }
+
+        for (BOOL running = 1; running;) {
+            while (PeekMessageA(&message, 0, 0, 0, PM_REMOVE)) {
+                switch (message.message) {
+                    case WM_CHAR: {
+                        OutputDebugStringA("WM_CHAR\n");
+                    } break;
+                }
+            }
+
+            if (running) {
+                RECT rect = {0};
+                GetClientRect(win32->window, &rect);
+
+                UINT newWidth = rect.right - rect.left;
+                UINT newHeight = rect.bottom - rect.top;
+
+                win32D3d11Render(win32, newWidth, newHeight);
+            }
+        }
+    }
+
+    return 0;
 }
 
 int WinMain(
@@ -45,9 +84,11 @@ int WinMain(
 ) {
     TTS_UNREFERENCED(previousInstance);
     TTS_UNREFERENCED(commandLine);
-    TTS_UNREFERENCED(showCommand);
+
+    Win32 win32 = {0};
 
     WNDCLASSEXA windowClass = {0};
+
     char className[] = "tetris";
     {
         windowClass.cbSize = sizeof(windowClass);
@@ -63,8 +104,6 @@ int WinMain(
         windowClass.lpszClassName = className;
         windowClass.hIconSm = 0;
     }
-
-    Win32 win32 = {0};
 
     if (RegisterClassExA(&windowClass)) {
         win32.window = CreateWindowExA(
@@ -82,26 +121,27 @@ int WinMain(
             0
         );
 
-        if (win32.window && win32D3d11Init(&win32)) {
-            ShowWindow(win32.window, showCommand);
+        if (win32.window) {
+            win32.threadReady = CreateEventA(0, 0, 0, 0);
+            // Wait until the thread has created its message queue
+            if (
+                CreateThread(0, 0, threadProc, &win32, 0, &GlobalThreadId)
+                && WAIT_OBJECT_0 == WaitForSingleObject(win32.threadReady, 1000)
+            ) {
+                ShowWindow(win32.window, showCommand);
 
-            win32D3d11Render(&win32);
-
-            MSG message = {0};
-            BOOL ok = 0;
-            while ((ok = GetMessage(&message, 0, 0, 0))) {
-                if (ok == -1) {
-                    break;
-                } else {
-                    TranslateMessage(&message);
-                    DispatchMessageA(&message);
+                MSG message = {0};
+                BOOL ok = 0;
+                while ((ok = GetMessage(&message, 0, 0, 0))) {
+                    if (ok == -1) {
+                        break;
+                    } else {
+                        TranslateMessage(&message);
+                        DispatchMessageA(&message);
+                    }
                 }
             }
         }
     }
-
-    DWORD error = GetLastError();
-    TTS_UNREFERENCED(error);
-
     return 0;
 }
