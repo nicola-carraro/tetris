@@ -107,7 +107,7 @@ int WinMain(
 
     if (RegisterClassExA(&windowClass)) {
         win32.window = CreateWindowExA(
-            WS_EX_NOREDIRECTIONBITMAP,
+            0,
             className,
             "Tetris",
             WS_OVERLAPPEDWINDOW,

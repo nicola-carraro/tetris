@@ -81,8 +81,8 @@ BOOL win32D3d11Init(Win32 *win32) {
                 swapChainDesc.SampleDesc.Quality = 0;
                 swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
                 swapChainDesc.BufferCount = 2;
-                swapChainDesc.Scaling = DXGI_SCALING_NONE;
-                swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+                swapChainDesc.Scaling = DXGI_SCALING_STRETCH;
+                swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
                 swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
                 swapChainDesc.Flags = 0;
             }
@@ -105,7 +105,7 @@ BOOL win32D3d11Init(Win32 *win32) {
 
 void win32D3d11Render(Win32 *win32, UINT newWidth, UINT newHeight) {
     if (!win32->renderTargetView || win32->width != newWidth || win32->height != newHeight) {
-		ID3D11DeviceContext_ClearState(win32->deviceContext);
+        ID3D11DeviceContext_ClearState(win32->deviceContext);
         if (win32->renderTargetView) {
             ID3D11RenderTargetView_Release(win32->renderTargetView);
         }
