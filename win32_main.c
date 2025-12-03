@@ -29,6 +29,13 @@ LRESULT windowProc(
 ) {
     LRESULT result = 0;
     switch (message) {
+        case WM_CLOSE: {
+            PostThreadMessageA(GlobalThreadId, message, wParam, lParam);
+            Platform *win32 = (Platform *)GetWindowLongPtrA(window, GWLP_USERDATA);
+            WaitForSingleObject(win32->threadEvent, 1000);
+            DestroyWindow(window);
+        } break;
+
         case WM_DESTROY: {
             PostQuitMessage(0);
         } break;
@@ -53,14 +60,17 @@ DWORD threadProc(LPVOID parameter) {
         // Create message queue and signal it to the window thread
         {
             PeekMessage(&message, 0, WM_USER, WM_USER, PM_NOREMOVE);
-            SetEvent(win32->threadReady);
+            SetEvent(win32->threadEvent);
         }
 
         for (BOOL running = 1; running;) {
-            while (PeekMessageA(&message, 0, 0, 0, PM_REMOVE)) {
+            while (running && PeekMessageA(&message, 0, 0, 0, PM_REMOVE)) {
                 switch (message.message) {
                     case WM_CHAR: {
                         OutputDebugStringA("WM_CHAR\n");
+                    } break;
+                    case WM_CLOSE: {
+                        running = 0;
                     } break;
                 }
             }
@@ -78,6 +88,7 @@ DWORD threadProc(LPVOID parameter) {
         }
     }
 
+    SetEvent(win32->threadEvent);
     return 0;
 }
 
@@ -127,11 +138,12 @@ int WinMain(
         );
 
         if (win32.window) {
-            win32.threadReady = CreateEventA(0, 0, 0, 0);
+            win32.threadEvent = CreateEventA(0, 0, 0, 0);
+            SetWindowLongPtrA(win32.window, GWLP_USERDATA, (LONG_PTR) &win32);
             // Wait until the thread has created its message queue
             if (
                 CreateThread(0, 0, threadProc, &win32, 0, &GlobalThreadId)
-                && WAIT_OBJECT_0 == WaitForSingleObject(win32.threadReady, 1000)
+                && WAIT_OBJECT_0 == WaitForSingleObject(win32.threadEvent, 1000)
             ) {
                 ShowWindow(win32.window, showCommand);
 
