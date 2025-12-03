@@ -1,3 +1,5 @@
+#include <stdint.h>
+#include "platform.h"
 #include "tetris.c"
 
 #define COBJMACROS
@@ -9,6 +11,7 @@
 #include <dxgi1_2.h>
 #include <dxgi1_3.h>
 #include <dxgidebug.h>
+#include <d3dcompiler.h>
 #pragma warning(pop)
 
 #include "win32.c"
@@ -16,6 +19,7 @@
 #pragma comment(lib, "User32")
 #pragma comment(lib, "D3D11")
 #pragma comment(lib, "DXGI")
+#pragma comment(lib, "d3dcompiler")
 
 LRESULT windowProc(
     HWND window,
@@ -42,7 +46,7 @@ LRESULT windowProc(
 }
 
 DWORD threadProc(LPVOID parameter) {
-    Win32 *win32 = (Win32 *)parameter;
+    Platform *win32 = (Platform *)parameter;
 
     if (win32D3d11Init(win32)) {
         MSG message = {0};
@@ -64,11 +68,12 @@ DWORD threadProc(LPVOID parameter) {
             if (running) {
                 RECT rect = {0};
                 GetClientRect(win32->window, &rect);
-
                 UINT newWidth = rect.right - rect.left;
                 UINT newHeight = rect.bottom - rect.top;
-
+                ttsUpdate(win32);
                 win32D3d11Render(win32, newWidth, newHeight);
+                win32->width = newWidth;
+                win32->height = newHeight;
             }
         }
     }
@@ -85,7 +90,7 @@ int WinMain(
     TTS_UNREFERENCED(previousInstance);
     TTS_UNREFERENCED(commandLine);
 
-    Win32 win32 = {0};
+    Platform win32 = {0};
 
     WNDCLASSEXA windowClass = {0};
 
