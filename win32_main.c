@@ -29,12 +29,24 @@ LRESULT windowProc(
     LPARAM lParam
 ) {
     LRESULT result = 0;
+    Platform *win32 = (Platform *)GetWindowLongPtrA(window, GWLP_USERDATA);
     switch (message) {
-        case WM_CLOSE: {
-            PostThreadMessageA(GlobalThreadId, message, wParam, lParam);
-            Platform *win32 = (Platform *)GetWindowLongPtrA(window, GWLP_USERDATA);
-            WaitForSingleObject(win32->threadEvent, 1000);
-            DestroyWindow(window);
+        // case WM_CLOSE: {
+        // PostThreadMessageA(GlobalThreadId, message, wParam, lParam);
+        // Platform *win32 = (Platform *)GetWindowLongPtrA(window, GWLP_USERDATA);
+        // WaitForSingleObject(win32->threadEvent, 1000);
+        // DestroyWindow(window);
+        // } break;
+
+        case WM_PAINT: {
+            PAINTSTRUCT paint = {0};
+            BeginPaint(window, &paint);
+            win32Update(win32);
+            EndPaint(window, &paint);
+        } break;
+
+        case WM_SIZE: {
+            win32Update(win32);
         } break;
 
         case WM_DESTROY: {
@@ -78,15 +90,7 @@ DWORD threadProc(LPVOID parameter) {
             }
 
             if (running) {
-                RECT rect = {0};
-                GetClientRect(win32->window, &rect);
-                UINT newWidth = rect.right - rect.left;
-                UINT newHeight = rect.bottom - rect.top;
-                ttsUpdate(win32, win32->atlas);
-
-                win32D3d11Render(win32, newWidth, newHeight);
-                win32->width = newWidth;
-                win32->height = newHeight;
+                win32Update(win32);
             }
         }
 
@@ -141,26 +145,41 @@ int WinMain(
             0
         );
 
-        if (win32.window) {
-            win32.threadEvent = CreateEventA(0, 0, 0, 0);
+        if (win32.window && win32D3d11Init(&win32)) {
+            //win32.threadEvent = CreateEventA(0, 0, 0, 0);
             SetWindowLongPtrA(win32.window, GWLP_USERDATA, (LONG_PTR) &win32);
+            ShowWindow(win32.window, showCommand);
             // Wait until the thread has created its message queue
-            if (
-                CreateThread(0, 0, threadProc, &win32, 0, &GlobalThreadId)
-                && WAIT_OBJECT_0 == WaitForSingleObject(win32.threadEvent, 1000)
-            ) {
-                ShowWindow(win32.window, showCommand);
+            // if (
+            // CreateThread(0, 0, threadProc, &win32, 0, &GlobalThreadId)
+            // && WAIT_OBJECT_0 == WaitForSingleObject(win32.threadEvent, 1000)
+            // ) {
 
+            // MSG message = {0};
+            // BOOL ok = 0;
+            // while ((ok = GetMessage(&message, 0, 0, 0))) {
+            // if (ok == -1) {
+            // break;
+            // } else {
+            // TranslateMessage(&message);
+            // DispatchMessageA(&message);
+            // }
+            // }
+            // }
+
+            for (BOOL running = 1; running;) {
                 MSG message = {0};
-                BOOL ok = 0;
-                while ((ok = GetMessage(&message, 0, 0, 0))) {
-                    if (ok == -1) {
+                while (PeekMessageA(&message, 0, 0, 0, PM_REMOVE)) {
+                    if (message.message == WM_QUIT) {
+                        running = 0;
                         break;
                     } else {
                         TranslateMessage(&message);
                         DispatchMessageA(&message);
                     }
                 }
+
+                win32Update(&win32);
             }
         }
     }

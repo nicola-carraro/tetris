@@ -610,7 +610,7 @@ void win32D3d11Render(Platform *win32, UINT newWidth, UINT newHeight) {
         }
     }
 
-    float backgroundColor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    float backgroundColor[4] = {0.0f, 1.0f, 0.0f, 1.0f};
 
     ID3D11DeviceContext_ClearRenderTargetView(
         win32->deviceContext,
@@ -697,4 +697,17 @@ void win32D3d11Render(Platform *win32, UINT newWidth, UINT newHeight) {
     ID3D11DeviceContext_ClearState(win32->deviceContext);
 
     win32->vertices.vertexCount = 0;
+}
+
+void win32Update(Platform *win32) {
+    RECT rect = {0};
+    GetClientRect(win32->window, &rect);
+    UINT newWidth = rect.right - rect.left;
+    UINT newHeight = rect.bottom - rect.top;
+    ttsUpdate(win32, win32->atlas);
+
+    win32D3d11Render(win32, newWidth, newHeight);
+    win32->width = newWidth;
+    win32->height = newHeight;
+    win32->height = newHeight;
 }
