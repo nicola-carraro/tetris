@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include "platform.h"
+#include "tetris.h"
 #include "tetris.c"
 
 #define COBJMACROS
@@ -55,8 +56,9 @@ LRESULT windowProc(
 DWORD threadProc(LPVOID parameter) {
     Platform *win32 = (Platform *)parameter;
 
+    MSG message = {0};
+
     if (win32D3d11Init(win32)) {
-        MSG message = {0};
         // Create message queue and signal it to the window thread
         {
             PeekMessage(&message, 0, WM_USER, WM_USER, PM_NOREMOVE);
@@ -80,15 +82,17 @@ DWORD threadProc(LPVOID parameter) {
                 GetClientRect(win32->window, &rect);
                 UINT newWidth = rect.right - rect.left;
                 UINT newHeight = rect.bottom - rect.top;
-                ttsUpdate(win32);
+                ttsUpdate(win32, win32->atlas);
+
                 win32D3d11Render(win32, newWidth, newHeight);
                 win32->width = newWidth;
                 win32->height = newHeight;
             }
         }
+
+        SetEvent(win32->threadEvent);
     }
 
-    SetEvent(win32->threadEvent);
     return 0;
 }
 
@@ -115,7 +119,7 @@ int WinMain(
         windowClass.hInstance = instance;
         windowClass.hIcon = 0;
         windowClass.hCursor = LoadCursor(0, IDC_ARROW);
-        windowClass.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+        windowClass.hbrBackground = (HBRUSH)COLOR_WINDOW;
         windowClass.lpszMenuName = 0;
         windowClass.lpszClassName = className;
         windowClass.hIconSm = 0;
