@@ -3,15 +3,13 @@
 #include <stdint.h>
 
 #include "platform.h"
-#include "tetris.h"
+#include "tetris.c"
+
+#include "win32.c"
 
 #pragma warning(push, 0)
-
-#include <windows.h>
-#include <initguid.h>
 #include "cdwrite.h"
 #include <stdio.h>
-
 #pragma warning(pop)
 
 #pragma comment(lib, "Gdi32")

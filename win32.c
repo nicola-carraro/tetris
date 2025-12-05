@@ -1,3 +1,13 @@
+#pragma warning(push, 0)
+#include <windows.h>
+#include <initguid.h>
+#include <d3d11.h>
+#include <dxgi1_2.h>
+#include <dxgi1_3.h>
+#include <dxgidebug.h>
+#include <d3dcompiler.h>
+#pragma warning(pop)
+
 typedef struct {
     float x;
     float y;
@@ -95,7 +105,7 @@ ReadResult win32ReadEntireFile(char *path) {
     return result;
 }
 
-BOOL win32D3d11Compile(
+static BOOL win32D3d11Compile(
     VOID *source,
     SIZE_T sourceSize,
     LPCSTR entryPoint,
@@ -132,7 +142,7 @@ BOOL win32D3d11Compile(
     return ok;
 }
 
-BOOL win32D3d11Init(Platform *win32) {
+static BOOL win32D3d11Init(Platform *win32) {
     HRESULT hr = E_FAIL;
     BOOL ok = 0;
     UINT flags = 0;

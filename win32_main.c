@@ -1,19 +1,8 @@
 #include <stdint.h>
 #include "platform.h"
-#include "tetris.h"
 #include "tetris.c"
 
 #define COBJMACROS
-
-#pragma warning(push, 0)
-#include <windows.h>
-#include <initguid.h>
-#include <d3d11.h>
-#include <dxgi1_2.h>
-#include <dxgi1_3.h>
-#include <dxgidebug.h>
-#include <d3dcompiler.h>
-#pragma warning(pop)
 
 #include "win32.c"
 
