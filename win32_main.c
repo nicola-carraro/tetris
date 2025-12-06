@@ -1,5 +1,3 @@
-#include <stdint.h>
-#include "platform.h"
 #include "tetris.c"
 
 #define COBJMACROS
@@ -18,24 +16,26 @@ LRESULT windowProc(
     LPARAM lParam
 ) {
     LRESULT result = 0;
-    Platform *win32 = (Platform *)GetWindowLongPtrA(window, GWLP_USERDATA);
+    TtsTetris *tetris = (TtsTetris *)GetWindowLongPtrA(window, GWLP_USERDATA);
     switch (message) {
-        // case WM_CLOSE: {
-        // PostThreadMessageA(GlobalThreadId, message, wParam, lParam);
-        // Platform *win32 = (Platform *)GetWindowLongPtrA(window, GWLP_USERDATA);
-        // WaitForSingleObject(win32->threadEvent, 1000);
-        // DestroyWindow(window);
-        // } break;
-
         case WM_PAINT: {
             PAINTSTRUCT paint = {0};
             BeginPaint(window, &paint);
-            win32Update(win32);
+            win32Update(tetris);
             EndPaint(window, &paint);
         } break;
 
         case WM_SIZE: {
-            win32Update(win32);
+            win32Update(tetris);
+        } break;
+
+        case WM_ENTERSIZEMOVE: {
+            tetris->wasResizing = true;
+            tetris->isResizing = true;
+        } break;
+
+        case WM_EXITSIZEMOVE: {
+            tetris->isResizing = false;
         } break;
 
         case WM_DESTROY: {
@@ -54,41 +54,6 @@ LRESULT windowProc(
     return result;
 }
 
-DWORD threadProc(LPVOID parameter) {
-    Platform *win32 = (Platform *)parameter;
-
-    MSG message = {0};
-
-    if (win32D3d11Init(win32)) {
-        // Create message queue and signal it to the window thread
-        {
-            PeekMessage(&message, 0, WM_USER, WM_USER, PM_NOREMOVE);
-            SetEvent(win32->threadEvent);
-        }
-
-        for (BOOL running = 1; running;) {
-            while (running && PeekMessageA(&message, 0, 0, 0, PM_REMOVE)) {
-                switch (message.message) {
-                    case WM_CHAR: {
-                        OutputDebugStringA("WM_CHAR\n");
-                    } break;
-                    case WM_CLOSE: {
-                        running = 0;
-                    } break;
-                }
-            }
-
-            if (running) {
-                win32Update(win32);
-            }
-        }
-
-        SetEvent(win32->threadEvent);
-    }
-
-    return 0;
-}
-
 int WinMain(
     _In_     HINSTANCE instance,
     _In_opt_ HINSTANCE previousInstance,
@@ -98,9 +63,13 @@ int WinMain(
     TTS_UNREFERENCED(previousInstance);
     TTS_UNREFERENCED(commandLine);
 
-    Platform win32 = {0};
+    TtsTetris tetris = {0};
+    TtsPlatform win32 = {0};
+    tetris.platform = &win32;
 
     WNDCLASSEXA windowClass = {0};
+
+    win32.performanceFrequency = win32QueryPerformanceFrequency();
 
     char className[] = "tetris";
     {
@@ -134,27 +103,9 @@ int WinMain(
             0
         );
 
-        if (win32.window && win32D3d11Init(&win32)) {
-            //win32.threadEvent = CreateEventA(0, 0, 0, 0);
-            SetWindowLongPtrA(win32.window, GWLP_USERDATA, (LONG_PTR) &win32);
+        if (win32.window && win32D3d11Init(&tetris)) {
+            SetWindowLongPtrA(win32.window, GWLP_USERDATA, (LONG_PTR) &tetris);
             ShowWindow(win32.window, showCommand);
-            // Wait until the thread has created its message queue
-            // if (
-            // CreateThread(0, 0, threadProc, &win32, 0, &GlobalThreadId)
-            // && WAIT_OBJECT_0 == WaitForSingleObject(win32.threadEvent, 1000)
-            // ) {
-
-            // MSG message = {0};
-            // BOOL ok = 0;
-            // while ((ok = GetMessage(&message, 0, 0, 0))) {
-            // if (ok == -1) {
-            // break;
-            // } else {
-            // TranslateMessage(&message);
-            // DispatchMessageA(&message);
-            // }
-            // }
-            // }
 
             for (BOOL running = 1; running;) {
                 MSG message = {0};
@@ -168,7 +119,9 @@ int WinMain(
                     }
                 }
 
-                win32Update(&win32);
+                if (running) {
+                    win32Update(&tetris);
+                }
             }
         }
     }

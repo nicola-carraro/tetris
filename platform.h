@@ -1,10 +1,10 @@
-typedef struct Platform Platform;
+typedef struct TtsPlatform TtsPlatform;
 
 void platformDrawColorQuad(
     float x, float y,
     float width, float height,
     float r, float g, float b, float a,
-    Platform *platform
+    TtsPlatform *platform
 );
 
 void platformDrawTextureQuad(
@@ -14,6 +14,6 @@ void platformDrawTextureQuad(
    float widthInTexture, float heightInTexture,
    float textureWidth, float textureHeight,
    float r, float g, float b, float a,
-   Platform *win32
+   TtsPlatform *win32
   
 );
