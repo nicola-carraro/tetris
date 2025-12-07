@@ -1,180 +1,39 @@
-#define COBJMACROS
-
 #include <stdint.h>
+#include <stdbool.h>
 
-#include "platform.h"
 #include "tetris.h"
+#include "platform.h"
+#include "tetris.c"
 
+#define COBJMACROS
 #pragma warning(push, 0)
-
 #include <windows.h>
 #include <initguid.h>
-#include "cdwrite.h"
+#include <d3d11.h>
+#include <dxgi1_2.h>
+#include <dxgi1_3.h>
+#include <dxgidebug.h>
+#include <d3dcompiler.h>
 #include <stdio.h>
+#pragma warning(pop)
 
+#include "win32.c"
+#include "d3d11.c"
+
+#pragma warning(push, 0)
+#include "cdwrite.h"
 #pragma warning(pop)
 
 #pragma comment(lib, "Gdi32")
 #pragma comment(lib, "User32")
 
-typedef int32_t i32;
-
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-typedef float    f32;
-typedef unsigned char uchar;
-
 typedef struct {
-    i32 x;
-    i32 y;
-} V2I32;
-
-typedef struct {
-    u32 codepoint;
-    u16 index;
-    i32 xOffsetInPixels;
-    i32 yOffsetInPixels;
-    i32 advanceWidthInPixels;
-    i32 bitmapXInPixels;
-    i32 bitmapYInPixels;
-    i32 bitmapWidthInPixels;
-    i32 bitmapHeightInPixels;
-} Glyph;
-
-typedef struct {
-    u32 codepoint;
-    u32 heightInDesignUnits;
-} GlyphHeight;
-
-typedef struct {
-    u32 codepoints[1024];
-    i32 codepointCount;
-    i32 lineHeightInPixels;
-    BITMAPINFO bitmapInfo;
-    void *bitmapBits;
-    Glyph glyphs[TTS_CODEPOINT_COUNT];
-} State;
+    uint32_t codepoint;
+    uint32_t heightInDesignUnits;
+} AtlGlyphHeight;
 
 int compareGlyphHeightDescending(const void *l, const void *r) {
-    return ((GlyphHeight *)r)->heightInDesignUnits - ((GlyphHeight *)l)->heightInDesignUnits;
-}
-
-void win32DebugPrint(_Printf_format_string_ const char *format, ...) {
-    char buffer[1024] = {0};
-
-    va_list arguments;
-    va_start(arguments, format);
-    vsnprintf(buffer, sizeof(buffer) - 1, format, arguments);
-    OutputDebugStringA(buffer);
-    va_end(arguments);
-}
-
-i32 roundF32ToI32(f32 f) {
-    i32 result = (i32)f;
-
-    if (f - (f32)result > 0.5f) {
-        result++;
-    }
-
-    return result;
-}
-
-LRESULT windowProc(
-    HWND window,
-    UINT message,
-    WPARAM wParam,
-    LPARAM lParam
-) {
-    LRESULT result = 0;
-
-    State *state = (State *)GetWindowLongPtrA(window, GWLP_USERDATA);
-
-    switch (message) {
-        case WM_DESTROY: {
-            PostQuitMessage(0);
-        } break;
-
-        case WM_PAINT: {
-            PAINTSTRUCT paint = {0};
-            HDC dc =   BeginPaint(window, &paint);
-
-            RECT rect = {0};
-            GetClientRect(window, &rect);
-
-            int windowWidth = rect.right - rect.left;
-            int windowHeight = rect.bottom - rect.top;
-
-            BOOL ok = PatBlt(
-                dc,
-                0,
-                0,
-                windowWidth,
-                windowHeight,
-                BLACKNESS
-            );
-            TTS_ASSERT(ok);
-
-            i32 leftMargin = 10;
-            i32 topMargin = 10;
-
-            i32 x = leftMargin;
-            i32 y = topMargin;
-
-            for (i32 codepointIndex = 0; codepointIndex < state->codepointCount; codepointIndex++) {
-                u32 codepoint = state->codepoints[codepointIndex];
-                if (codepoint == '\r') {
-                    y += state->lineHeightInPixels;
-                    x = leftMargin;
-                } else {
-                    u32 totalHeight = -state->bitmapInfo.bmiHeader.biHeight;
-                    Glyph glyph = state->glyphs[codepoint - TTS_FIRST_CODEPOINT];
-                    StretchDIBits(
-                        dc,
-                        x + glyph.xOffsetInPixels,
-                        y + glyph.yOffsetInPixels,
-                        glyph.bitmapWidthInPixels,
-                        glyph.bitmapHeightInPixels,
-                        glyph.bitmapXInPixels,
-                        totalHeight - glyph.bitmapYInPixels - glyph.bitmapHeightInPixels,
-                        glyph.bitmapWidthInPixels,
-                        glyph.bitmapHeightInPixels,
-                        state->bitmapBits,
-                        &state->bitmapInfo,
-                        DIB_RGB_COLORS,
-                        SRCCOPY
-                    );
-                    x += glyph.advanceWidthInPixels;
-                }
-            }
-
-            EndPaint(window, &paint);
-        } break;
-
-        case WM_CHAR: {
-            if (
-                ((wParam >= TTS_FIRST_CODEPOINT && wParam <= TTS_LAST_CODEPOINT) || wParam == '\r')
-                && state->codepointCount < TTS_ARRAYCOUNT(state->codepoints)
-            ) {
-                state->codepoints[state->codepointCount++] = (u32)wParam;
-                InvalidateRect(window, 0, 0);
-            }
-        } break;
-
-        case WM_KEYDOWN: {
-            if (wParam == VK_BACK && state->codepointCount > 0) {
-                state->codepointCount--;
-                InvalidateRect(window, 0, 0);
-            }
-        } break;
-
-        default: {
-            result = DefWindowProcA(window, message, wParam, lParam);
-        }
-    }
-
-    return result;
+    return ((AtlGlyphHeight *)r)->heightInDesignUnits - ((AtlGlyphHeight *)l)->heightInDesignUnits;
 }
 
 int  WinMain(
@@ -190,7 +49,6 @@ int  WinMain(
 
     BOOL ok = 0;
     HRESULT hr = E_FAIL;
-    State state = {0};
 
     IDWriteFactory* factory = 0;
     hr = DWriteCreateFactory(
@@ -243,7 +101,7 @@ int  WinMain(
     );
     TTS_ASSERT(SUCCEEDED(hr));
 
-    u64 bufferSize = 1024 * 1024;
+    uint64_t bufferSize = 1024 * 1024;
     void *buffer = VirtualAlloc(
         0,
         bufferSize,
@@ -274,9 +132,9 @@ int  WinMain(
     );
     TTS_ASSERT(ok);
 
-    u64 fontFileSize = numberOfBytesRead;
+    uint64_t fontFileSize = numberOfBytesRead;
     UINT32 codepoints[TTS_CODEPOINT_COUNT] = {0};
-    for (u32 codepointIndex = 0; codepointIndex < TTS_ARRAYCOUNT(codepoints); codepointIndex++) {
+    for (uint32_t codepointIndex = 0; codepointIndex < TTS_ARRAYCOUNT(codepoints); codepointIndex++) {
         codepoints[codepointIndex] =  TTS_FIRST_CODEPOINT + codepointIndex;
     }
 
@@ -286,12 +144,11 @@ int  WinMain(
         &fontFaceMetrics
     );
 
-    i32 fontHeightInDesignUnits = fontFaceMetrics.ascent + fontFaceMetrics.descent;
-    f32 targetHeightInPixels = 50.0f;
-    f32 pixelsPerDesignUnit =  targetHeightInPixels / (f32)fontHeightInDesignUnits;
-    f32 emSizeInPixels = (f32)fontFaceMetrics.designUnitsPerEm * pixelsPerDesignUnit;
-    state.lineHeightInPixels = roundF32ToI32((f32)(fontHeightInDesignUnits + fontFaceMetrics.lineGap) * pixelsPerDesignUnit);
-    f32 ascentInPixels =  fontFaceMetrics.ascent * pixelsPerDesignUnit;
+    int32_t fontHeightInDesignUnits = fontFaceMetrics.ascent + fontFaceMetrics.descent;
+    float targetHeightInPixels = 50.0f;
+    float pixelsPerDesignUnit =  targetHeightInPixels / (float)fontHeightInDesignUnits;
+    float emSizeInPixels = (float)fontFaceMetrics.designUnitsPerEm * pixelsPerDesignUnit;
+    float ascentInPixels =  fontFaceMetrics.ascent * pixelsPerDesignUnit;
 
     UINT16 glyphIndices[TTS_ARRAYCOUNT(codepoints)] = {0};
     hr = IDWriteFontFace_GetGlyphIndices(
@@ -316,13 +173,14 @@ int  WinMain(
     );
     TTS_ASSERT(SUCCEEDED(hr));
 
-    GlyphHeight glyphHeights [TTS_ARRAYCOUNT(state.glyphs)] = {0};
+    AtlGlyphHeight glyphHeights [TTS_CODEPOINT_COUNT] = {0};
 
-    for (u32 codepointIndex = 0; codepointIndex < TTS_ARRAYCOUNT(codepoints); codepointIndex++) {
-        state.glyphs[codepointIndex].codepoint = codepoints[codepointIndex];
-        state.glyphs[codepointIndex].index = glyphIndices[codepointIndex];
+    TtsAtlas atlas = {0};
+    for (uint32_t codepointIndex = 0; codepointIndex < TTS_ARRAYCOUNT(codepoints); codepointIndex++) {
+        atlas.glyphs[codepointIndex].codepoint = codepoints[codepointIndex];
+        atlas.glyphs[codepointIndex].index = glyphIndices[codepointIndex];
         DWRITE_GLYPH_METRICS currentGlyphMetrics = glyphMetrics[codepointIndex];
-        state.glyphs[codepointIndex].advanceWidthInPixels = roundF32ToI32((f32)glyphMetrics[codepointIndex].advanceWidth * pixelsPerDesignUnit);
+        atlas.glyphs[codepointIndex].advanceWidthInPixels = (float)glyphMetrics[codepointIndex].advanceWidth * pixelsPerDesignUnit;
         glyphHeights[codepointIndex].heightInDesignUnits = currentGlyphMetrics.advanceHeight - currentGlyphMetrics.topSideBearing - currentGlyphMetrics.bottomSideBearing;
         glyphHeights[codepointIndex].codepoint = codepoints[codepointIndex];
     }
@@ -334,15 +192,15 @@ int  WinMain(
         compareGlyphHeightDescending
     );
 
-    i32 xOffset = 1;
-    i32 yOffset = 1;
-    i32 bitmapWidth = 256;
-    i32 lineHeight = 0;
+    int32_t xOffset = 1;
+    int32_t yOffset = 1;
+    int32_t bitmapWidth = 256;
+    int32_t lineHeight = 0;
 
-    u8 *targetPixels = (u8 *)buffer + fontFileSize;
+    uint8_t *targetPixels = (uint8_t *)buffer + fontFileSize;
 
-    for (u32 glyphIndex = 0; glyphIndex < TTS_ARRAYCOUNT(state.glyphs); glyphIndex++) {
-        Glyph *glyph = state.glyphs + glyphHeights[glyphIndex].codepoint - TTS_FIRST_CODEPOINT;
+    for (uint32_t glyphIndex = 0; glyphIndex < TTS_ARRAYCOUNT(atlas.glyphs); glyphIndex++) {
+        TtsGlyph *glyph = atlas.glyphs + glyphHeights[glyphIndex].codepoint - TTS_FIRST_CODEPOINT;
 
         HDC dc = IDWriteBitmapRenderTarget_GetMemoryDC(renderTarget);
 
@@ -411,44 +269,25 @@ int  WinMain(
             lineHeight = glyphHeight + 1;
         }
 
-        glyph->xOffsetInPixels = blackBoxRect.left - originX;
-        glyph->yOffsetInPixels = roundF32ToI32(ascentInPixels) + blackBoxRect.top - originY;
-        glyph->bitmapWidthInPixels  = glyphWidth;
-        glyph->bitmapHeightInPixels = glyphHeight;
-        glyph->bitmapXInPixels = xOffset;
-        glyph->bitmapYInPixels = yOffset;
+        glyph->xOffsetInPixels = (float)blackBoxRect.left - (float)originX;
+        glyph->yOffsetInPixels = ascentInPixels + (float)blackBoxRect.top - (float)originY;
+        glyph->bitmapWidthInPixels  = (float)glyphWidth;
+        glyph->bitmapHeightInPixels = (float)glyphHeight;
+        glyph->bitmapXInPixels = (float)xOffset;
+        glyph->bitmapYInPixels = (float)yOffset;
 
-        // u32 *srcPixels = (u32 *)dib.dsBm.bmBits;
-        // u32 *targetPixels = (u32 *)((uchar *)buffer + fontFileSize);
-
-        // for (LONG y = 0; y < glyphHeight; y++) {
-        // for (LONG x = 0; x < glyphWidth; x++) {
-        // LONG renderTargetY =  y + blackBoxRect.top;
-        // LONG renderTargetX =  x + blackBoxRect.left;
-        // u32 srcPixel = srcPixels[(renderTargetY * renderTargetWidth) + renderTargetX];
-        // u8 srcBlue = (u8)srcPixel;
-        // u32 targetPixel = srcBlue << 0 | srcBlue << 8 | srcBlue << 16 | srcBlue << 24;
-        // i32 targetY = y + yOffset;
-        // i32 targetX = x + xOffset;
-        // u32 targetOffsetInBytes = (targetY * bitmapWidth + targetX) * sizeof(u32);
-
-        // TTS_ASSERT((targetOffsetInBytes <= (bufferSize  - sizeof(u32))));
-        // targetPixels[(targetY * bitmapWidth) + targetX] = targetPixel;
-        // }
-        // }
-
-        u32 *srcPixels = (u32 *)dib.dsBm.bmBits;
+        uint32_t *srcPixels = (uint32_t *)dib.dsBm.bmBits;
 
         for (LONG y = 0; y < glyphHeight; y++) {
             for (LONG x = 0; x < glyphWidth; x++) {
                 LONG renderTargetY =  y + blackBoxRect.top;
                 LONG renderTargetX =  x + blackBoxRect.left;
-                u32 srcPixel = srcPixels[(renderTargetY * renderTargetWidth) + renderTargetX];
-                u8 srcBlue = (u8)srcPixel;
-                u8 targetPixel = srcBlue;
-                i32 targetY = y + yOffset;
-                i32 targetX = x + xOffset;
-                u32 targetOffsetInBytes = targetY * bitmapWidth + targetX;
+                uint32_t srcPixel = srcPixels[(renderTargetY * renderTargetWidth) + renderTargetX];
+                uint8_t srcBlue = (uint8_t)srcPixel;
+                uint8_t targetPixel = srcBlue;
+                int32_t targetY = y + yOffset;
+                int32_t targetX = x + xOffset;
+                uint32_t targetOffsetInBytes = targetY * bitmapWidth + targetX;
 
                 TTS_ASSERT(targetOffsetInBytes < bufferSize);
                 targetPixels[(targetY * bitmapWidth) + targetX] = targetPixel;
@@ -458,47 +297,14 @@ int  WinMain(
         xOffset += glyphWidth + 1;
     }
 
-    i32 bitmapHeight = yOffset + lineHeight;
-    // u32 pixelsSizeInBytes = bitmapWidth * bitmapHeight * sizeof(u32);
-
-    // BITMAPINFOHEADER bitmapInfoHeader = {0};
-    // bitmapInfoHeader.biSize = sizeof(bitmapInfoHeader);
-    // bitmapInfoHeader.biWidth = bitmapWidth;
-    // bitmapInfoHeader.biHeight = -bitmapHeight;
-    // bitmapInfoHeader.biPlanes = 1;
-    // bitmapInfoHeader.biBitCount = 32;
-    // bitmapInfoHeader.biCompression = BI_RGB;
-
-    // state.bitmapInfo.bmiHeader = bitmapInfoHeader;
-    // state.bitmapBits = (uchar *)buffer + fontFileSize;
-
-    // BITMAPFILEHEADER fileHeader = {0};
-    // fileHeader.bfType = 'MB';
-    // fileHeader.bfSize = sizeof(fileHeader) + sizeof(bitmapInfoHeader) + pixelsSizeInBytes;
-    // fileHeader.bfOffBits = sizeof(fileHeader) + sizeof(bitmapInfoHeader);
-
-    // char fileName[] = "gdi.bmp";
-
-    // {
-    // HANDLE file = CreateFileA(fileName, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
-    // TTS_ASSERT(file);
-    // DWORD bytesWritten = 0;
-    // ok = WriteFile(file, &fileHeader, sizeof(fileHeader), &bytesWritten, 0);
-    // TTS_ASSERT(ok);
-    // ok = WriteFile(file, &bitmapInfoHeader, sizeof(bitmapInfoHeader), &bytesWritten, 0);
-    // TTS_ASSERT(ok);
-    // ok = WriteFile(file, state.bitmapBits, pixelsSizeInBytes, &bytesWritten, 0);
-    // TTS_ASSERT(ok);
-    // CloseHandle(file);
-    // }
-
+    int32_t bitmapHeight = yOffset + lineHeight;
     {
         HANDLE file = CreateFileA(TTS_ATLAS_PATH, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
         TTS_ASSERT(file);
         DWORD bytesWritten = 0;
-        Atlas atlas = {0};
-        atlas.width = bitmapWidth;
-        atlas.height = bitmapHeight;
+        atlas.width = (float)bitmapWidth;
+        atlas.height = (float)bitmapHeight;
+        atlas.lineHeightInPixels = (float)(fontHeightInDesignUnits + fontFaceMetrics.lineGap) * pixelsPerDesignUnit;
         ok = WriteFile(file, &atlas, sizeof(atlas), &bytesWritten, 0);
         TTS_ASSERT(ok);
         ok = WriteFile(file, targetPixels, bitmapWidth * bitmapHeight, &bytesWritten, 0);
@@ -507,48 +313,6 @@ int  WinMain(
         TTS_ASSERT(ok);
         CloseHandle(file);
     }
-
-    // WNDCLASSEXA windowClass = {0};
-    // char className[] = "main";
-    // {
-    // windowClass.cbSize = sizeof(windowClass);
-    // windowClass.lpfnWndProc = windowProc;
-    // windowClass.hInstance = instance;
-    // windowClass.lpszClassName = className;
-    // windowClass.hCursor = LoadCursorA(0, IDC_ARROW);
-    // }
-
-    // ok = RegisterClassExA(&windowClass);
-    // TTS_ASSERT(ok);
-
-    // HWND window = CreateWindowExA(
-    // 0,
-    // windowClass.lpszClassName,
-    // "Direct Write",
-    // WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
-    // CW_USEDEFAULT,
-    // CW_USEDEFAULT,
-    // CW_USEDEFAULT,
-    // CW_USEDEFAULT,
-    // 0,
-    // 0,
-    // instance,
-    // 0
-    // );
-    // TTS_ASSERT(window);
-
-    // SetWindowLongPtrA(window, GWLP_USERDATA, (LONG_PTR)(&state));
-    // ShowWindow(window, showCommand);
-
-    // MSG message = {0};
-    // while ((ok = GetMessage(&message, 0, 0, 0))) {
-    // if (ok == -1) {
-    // break;
-    // } else {
-    // TranslateMessage(&message);
-    // DispatchMessageA(&message);
-    // }
-    // }
 
     return 0;
 }

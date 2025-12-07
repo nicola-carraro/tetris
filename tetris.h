@@ -9,13 +9,96 @@
 #define TTS_POINTS_PER_PIXEL 0.75f
 #define TTS_FONT_PATH L"../data/Quantico-Regular.ttf"
 #define TTS_ATLAS_PATH "../data/atlas.dat"
+#define TTS_MAKE_STRING(a) {(a), (sizeof(a) - 1)}
+
+typedef struct TtsPlatform TtsPlatform;
 
 typedef struct {
-	uint32_t width;
-	uint32_t height;
-} Atlas;
+    char *text;
+    uint64_t size;
+} TtsString;
 
 typedef struct {
-	void *data;
-	uint64_t size;
-} ReadResult;
+    uint32_t codepoint;
+    uint16_t index;
+    float xOffsetInPixels;
+    float yOffsetInPixels;
+    float advanceWidthInPixels;
+    float bitmapXInPixels;
+    float bitmapYInPixels;
+    float bitmapWidthInPixels;
+    float bitmapHeightInPixels;
+} TtsGlyph;
+
+typedef struct {
+    float width;
+    float height;
+    float lineHeightInPixels;
+    TtsGlyph glyphs[TTS_CODEPOINT_COUNT];
+} TtsAtlas;
+
+typedef struct {
+    void *data;
+    uint64_t size;
+} TtsReadResult;
+
+typedef struct Platform Platform;
+
+typedef struct {
+    TtsPlatform *platform;
+    TtsAtlas atlas;
+    uint32_t windowWidth;
+    uint32_t windowHeight;
+    bool isResizing;
+    bool wasResizing;
+} TtsTetris;
+
+typedef struct {
+    int32_t x;
+    int32_t y;
+} TtsV2I32;
+
+typedef struct {
+    uint32_t chunkId;
+    uint32_t chunkSize;
+    uint32_t waveId;
+} RiffChunk;
+
+typedef struct {
+    uint32_t chunkId;
+    uint32_t chunkSize;
+} WavChunkHeader;
+
+typedef union {
+    uint32_t  n;
+    char s[4];
+} WavTag;
+
+typedef struct guid {
+    uint32_t data1;
+    uint16_t data2;
+    uint16_t data3;
+    uint8_t  data4[8];
+} Guid;
+
+#pragma pack(push, 1)
+typedef struct {
+    uint16_t  formatTag;
+    uint16_t  channels;
+    uint32_t  samplesPerSec;
+    uint32_t  avgBytesPerSec;
+    uint16_t  blockAlign;
+    uint16_t  bitsPerSample;
+    uint16_t  extensionSize;
+    uint16_t  validBitsPerSample;
+    uint32_t  channelMask;
+    Guid subFormat;
+} WavFmtChunk;
+#pragma pack(pop)
+
+typedef struct {
+    RiffChunk   *riffChunk;
+    WavFmtChunk *fmtChunk;
+    void        *data;
+    uint32_t         dataSize;
+} Wav;
