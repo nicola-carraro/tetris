@@ -1,4 +1,4 @@
-int32_t roundF32ToI32(float f) {
+static int32_t roundF32ToI32(float f) {
     int32_t result = (int32_t)f;
 
     if (f - (float)result > 0.5f) {
@@ -8,7 +8,7 @@ int32_t roundF32ToI32(float f) {
     return result;
 }
 
-void ttsDrawGlyph(
+static void ttsDrawGlyph(
     TtsTetris *tetris,
     TtsGlyph glyph,
     float x, float y,
@@ -30,7 +30,7 @@ void ttsDrawGlyph(
     );
 }
 
-void ttsDrawString(
+static void ttsDrawString(
     TtsTetris *tetris,
     TtsString string,
     float x, float y,
@@ -58,7 +58,7 @@ void ttsDrawString(
     }
 }
 
-Wav ttsWavParseFile(TtsReadResult file) {
+static Wav ttsWavParseFile(TtsReadResult file) {
     uint8_t *bytes = (uint8_t*) file.data;
 
     Wav wav = {0};
@@ -124,6 +124,7 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
     if (tetris->frame == 0) {
         platformPlayMusic(tetris, tetris->music);
     }
+
     static float x = 0.0f;
 
     float velocity = 50.0f;
@@ -152,10 +153,14 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
         x = 0;
     }
 
+    for (uint32_t controlIndex = 1; controlIndex < TTS_ARRAYCOUNT(tetris->controls); controlIndex++) {
+        tetris->controls[controlIndex].wasDown = tetris->controls[controlIndex].isDown;
+        tetris->controls[controlIndex].transitions = 0;
+    }
     tetris->frame++;
 }
 
-bool ttsWavIsValid(Wav wav) {
+static bool ttsWavIsValid(Wav wav) {
     bool result = wav.riffChunk && wav.fmtChunk && wav.data;
 
     return result;

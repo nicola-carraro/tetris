@@ -34,16 +34,16 @@ typedef struct {
     uint32_t heightInDesignUnits;
 } AtlGlyphHeight;
 
-int compareGlyphHeightDescending(const void *l, const void *r) {
+static int compareGlyphHeightDescending(const void *l, const void *r) {
     return ((AtlGlyphHeight *)r)->heightInDesignUnits - ((AtlGlyphHeight *)l)->heightInDesignUnits;
 }
 
-int  WinMain(
-    HINSTANCE instance,
-    HINSTANCE previousInstance,
-    LPSTR     commandLine,
-    int       showCommand
-) {
+int WinMain(
+    _In_     HINSTANCE instance,
+    _In_opt_ HINSTANCE previousInstance,
+    _In_     LPSTR     commandLine,
+    _In_     int       showCommand
+)  {
     TTS_UNREFERENCED(instance);
     TTS_UNREFERENCED(previousInstance);
     TTS_UNREFERENCED(commandLine);
@@ -311,7 +311,7 @@ int  WinMain(
         TTS_ASSERT(ok);
         ok = WriteFile(file, targetPixels, bitmapWidth * bitmapHeight, &bytesWritten, 0);
         DWORD error = GetLastError();
-        platformDebugPrint("%d\n", error);
+        platformDebugPrint("%u\n", error);
         TTS_ASSERT(ok);
         CloseHandle(file);
     }

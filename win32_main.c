@@ -62,8 +62,90 @@ LRESULT windowProc(
             PostQuitMessage(0);
         } break;
 
-        case WM_CHAR: {
-            platformPlaySound(tetris, tetris->sound);
+        case WM_KEYUP:
+        case WM_KEYDOWN: {
+            TtsControlType controlType = TtsControlType_None;
+
+            switch (wParam) {
+                case VK_LEFT : {
+                    controlType = TtsControlType_Left;
+                } break;
+
+                case VK_RIGHT: {
+                    controlType = TtsControlType_Right;
+                } break;
+
+                case VK_UP: {
+                    controlType = TtsControlType_Up;
+                } break;
+
+                case VK_DOWN: {
+                    controlType = TtsControlType_Down;
+                } break;
+
+                case VK_ESCAPE: {
+                    controlType = TtsControlType_Esc;
+                } break;
+
+                case VK_SPACE: {
+                    controlType = TtsControlType_Space;
+                    OutputDebugStringA("SPACE ");
+                } break;
+
+                case VK_RETURN: {
+                    controlType = TtsControlType_Enter;
+                } break;
+            }
+
+            if (controlType) {
+                TtsControl *control = &tetris->controls[controlType];
+                control->isDown = message == WM_KEYDOWN;
+                if (control->isDown) {
+                    control->wasDown = 1;
+                }
+                bool wasDown = (wParam >> 30) & 1;
+
+                if (message == WM_KEYUP || !wasDown) {
+                    control->transitions++;
+                }
+            }
+        } break;
+
+        case WM_LBUTTONUP:
+        case WM_LBUTTONDOWN:
+        case WM_RBUTTONUP:
+        case WM_RBUTTONDOWN:
+        case WM_MBUTTONUP:
+        case WM_MBUTTONDOWN: {
+            TtsControlType controlType = TtsControlType_None;
+
+            switch(message) {
+                case WM_LBUTTONUP:
+                case WM_LBUTTONDOWN:
+                {
+                    controlType = TtsControlType_MouseLeft;
+                } break;
+                case WM_RBUTTONUP:
+                case WM_RBUTTONDOWN:
+                {
+                    controlType = TtsControlType_MouseRight;
+                } break;
+                case WM_MBUTTONUP:
+                case WM_MBUTTONDOWN:{
+                    controlType = TtsControlType_MouseCenter;
+                } break;
+            }
+
+            if (controlType) {
+                TtsControl *control = &tetris->controls[controlType];
+                control->isDown = message == WM_LBUTTONDOWN || message == WM_RBUTTONDOWN || message == WM_MBUTTONDOWN;
+
+                if (control->isDown) {
+                    control->wasDown = 1;
+                }
+
+                control->transitions++;
+            }
         } break;
 
         default: {
@@ -74,6 +156,8 @@ LRESULT windowProc(
     return result;
 }
 
+#pragma warning(push)
+#pragma warning(disable :6262)
 int WinMain(
     _In_     HINSTANCE instance,
     _In_opt_ HINSTANCE previousInstance,
@@ -146,3 +230,4 @@ int WinMain(
     }
     return 0;
 }
+#pragma warning(pop)

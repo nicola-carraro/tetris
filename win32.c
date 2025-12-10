@@ -1,4 +1,4 @@
-void d3d11Render(TtsTetris *tetris, UINT newWidth, UINT newHeight);
+static void d3d11Render(TtsTetris *tetris, UINT newWidth, UINT newHeight);
 
 typedef struct {
     float x;
@@ -56,7 +56,7 @@ static void platformDebugPrint(_Printf_format_string_ const char *format, ...) {
     va_end(arguments);
 }
 
-LONGLONG win32GetFileSize(HANDLE file) {
+static LONGLONG win32GetFileSize(HANDLE file) {
     LARGE_INTEGER fileSize = {};
 
     GetFileSizeEx(file, &fileSize);
@@ -64,7 +64,7 @@ LONGLONG win32GetFileSize(HANDLE file) {
     return fileSize.QuadPart;
 }
 
-LONGLONG win32QueryPerformanceFrequency() {
+static LONGLONG win32QueryPerformanceFrequency() {
     LARGE_INTEGER performanceFrequency = {0};
 
     QueryPerformanceFrequency(&performanceFrequency);
@@ -72,7 +72,7 @@ LONGLONG win32QueryPerformanceFrequency() {
     return performanceFrequency.QuadPart;
 }
 
-LONGLONG win32QueryPerformanceCounter() {
+static LONGLONG win32QueryPerformanceCounter() {
     LARGE_INTEGER performanceCounter = {0};
 
     QueryPerformanceCounter(&performanceCounter);
@@ -80,7 +80,7 @@ LONGLONG win32QueryPerformanceCounter() {
     return performanceCounter.QuadPart;
 }
 
-TtsReadResult platformReadEntireFile(char *path) {
+static TtsReadResult platformReadEntireFile(char *path) {
     TtsReadResult result = {0};
 
     HANDLE file = CreateFile(path, GENERIC_READ, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
@@ -123,12 +123,18 @@ TtsReadResult platformReadEntireFile(char *path) {
     return result;
 }
 
-void win32Update(TtsTetris *tetris) {
+static void win32Update(TtsTetris *tetris) {
     TtsPlatform *win32 = tetris->platform;
     RECT rect = {0};
     GetClientRect(win32->window, &rect);
     UINT newWidth = rect.right - rect.left;
     UINT newHeight = rect.bottom - rect.top;
+
+    POINT mousePosition = {0};
+    GetCursorPos(&mousePosition);
+    ScreenToClient(tetris->platform->window, &mousePosition);
+    tetris->mouseX = mousePosition.x;
+    tetris->mouseY = mousePosition.y;
 
     float secondsElapsed = 0.0f;
 

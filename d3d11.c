@@ -124,8 +124,9 @@ static BOOL d3d11Init(TtsTetris *tetris) {
                 &win32->swapChain
             );
             ok = SUCCEEDED(hr);
+
+            IDXGIFactory2_Release(factory);
         }
-        IDXGIFactory2_Release(factory);
     }
 
     char source[] = TTS_QUOTE(
@@ -376,7 +377,7 @@ static BOOL d3d11Init(TtsTetris *tetris) {
     return ok;
 }
 
-void d3d11AddVertex(
+static void d3d11AddVertex(
     float x, float y,
     float u, float v,
     float mask,
@@ -403,7 +404,7 @@ void d3d11AddVertex(
     }
 }
 
-void d3d11DrawTriangle (
+static void d3d11DrawTriangle (
     float x0, float y0,
     float u0, float v0,
     float x1, float y1,
@@ -419,7 +420,7 @@ void d3d11DrawTriangle (
     d3d11AddVertex(x2, y2, u2, v2, mask, r, g, b, a, vertices);
 }
 
-void d3d11DrawQuad(
+static void d3d11DrawQuad(
     float x, float y,
     float width, float height,
     float u, float v,
@@ -478,7 +479,7 @@ static void platformDrawColorQuad(
     );
 }
 
-void d3d11Render(TtsTetris *tetris, UINT newWidth, UINT newHeight) {
+static void d3d11Render(TtsTetris *tetris, UINT newWidth, UINT newHeight) {
     HRESULT hr = E_FAIL;
     TtsPlatform *win32 = tetris->platform;
     if (!win32->renderTargetView || tetris->windowWidth != newWidth || tetris->windowHeight != newHeight) {
@@ -497,7 +498,7 @@ void d3d11Render(TtsTetris *tetris, UINT newWidth, UINT newHeight) {
             0,
             &mappedSubresource
         );
-        if (SUCCEEDED(hr)) {
+        if (SUCCEEDED(hr) && mappedSubresource.pData) {
             VsConstants *destination = (VsConstants *) mappedSubresource.pData;
             destination->windowWidth = (float)newWidth;
             destination->windowHeight = (float)newHeight;
@@ -536,7 +537,7 @@ void d3d11Render(TtsTetris *tetris, UINT newWidth, UINT newHeight) {
         &mappedSubresource
     );
 
-    if (SUCCEEDED(hr)) {
+    if (SUCCEEDED(hr) && mappedSubresource.pData) {
         Vertex *destination = (Vertex *) mappedSubresource.pData;
         for (uint32_t vertexIndex = 0; vertexIndex < win32->vertices.vertexCount; vertexIndex++) {
             destination[vertexIndex] =  win32->vertices.vertices[vertexIndex];

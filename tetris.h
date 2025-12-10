@@ -54,6 +54,29 @@ typedef struct {
     uint64_t size;
 } TtsReadResult;
 
+typedef struct {
+	bool wasDown;
+	bool isDown;
+	uint32_t transitions;
+} TtsControl;
+
+typedef enum {
+	TtsControlType_None,
+	
+	TtsControlType_Left,
+    TtsControlType_Right,
+    TtsControlType_Up,
+    TtsControlType_Down, 
+    TtsControlType_Esc,
+    TtsControlType_Space,
+    TtsControlType_Enter,
+    TtsControlType_MouseLeft,
+    TtsControlType_MouseRight,
+    TtsControlType_MouseCenter,
+
+    TtsControlType_Count,	
+} TtsControlType;
+
 
 typedef struct {
     uint32_t chunkId;
@@ -113,6 +136,9 @@ typedef struct {
 	Wav music;
 	Wav sound;
 	uint64_t frame;
+    TtsControl controls[TtsControlType_Count];
+	int32_t mouseX;
+	int32_t mouseY;
 } TtsTetris;
 
 typedef struct {
