@@ -89,12 +89,15 @@ LRESULT windowProc(
 
                 case VK_SPACE: {
                     controlType = TtsControlType_Space;
-                    OutputDebugStringA("SPACE ");
                 } break;
 
                 case VK_RETURN: {
                     controlType = TtsControlType_Enter;
                 } break;
+
+                case 'P': {
+                    controlType = TtsControlType_P;
+                }
             }
 
             if (controlType) {
@@ -166,6 +169,7 @@ int WinMain(
 ) {
     TTS_UNREFERENCED(previousInstance);
     TTS_UNREFERENCED(commandLine);
+    TTS_UNREFERENCED(showCommand);
     TtsPlatform win32 = {0};
 
     WNDCLASSEXA windowClass = {0};
@@ -193,7 +197,7 @@ int WinMain(
             0,
             className,
             "Tetris",
-            WS_OVERLAPPEDWINDOW,
+            WS_OVERLAPPEDWINDOW | WS_MAXIMIZE,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
@@ -208,7 +212,7 @@ int WinMain(
 
         if (win32.window && d3d11Init(&tetris)) {
             SetWindowLongPtrA(win32.window, GWLP_USERDATA, (LONG_PTR) &tetris);
-            ShowWindow(win32.window, showCommand);
+            ShowWindow(win32.window, SW_MAXIMIZE);
 
             for (BOOL running = 1; running;) {
                 MSG message = {0};
