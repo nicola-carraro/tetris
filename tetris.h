@@ -7,7 +7,6 @@
 #define TTS_CODEPOINT_COUNT (TTS_LAST_CODEPOINT - TTS_FIRST_CODEPOINT + 1)
 #define TTS_PIXELS_PER_POINT 1.33333333333333333f
 #define TTS_POINTS_PER_PIXEL 0.75f
-#define TTS_FONT_PATH L"../data/Quantico-Regular.ttf"
 #define TTS_ATLAS_PATH "../data/atlas.dat"
 #define TTS_MAKE_STRING(a) {(a), (sizeof(a) - 1)}
 #define TTS_ASSERT(a) do {if (!(a)) { __debugbreak();}} while (0);
@@ -19,9 +18,13 @@
 #define TTS_CODEPOINT_COUNT (TTS_LAST_CODEPOINT - TTS_FIRST_CODEPOINT + 1)
 #define TTS_PIXELS_PER_POINT 1.33333333333333333f
 #define TTS_POINTS_PER_PIXEL 0.75f
-#define TTS_FONT_PATH L"../data/Quantico-Regular.ttf"
+#define TTS_FONT_PATH L"../data/Handjet-Regular.ttf"
 #define TTS_ATLAS_PATH "../data/atlas.dat"
 #define TTS_MAKE_STRING(a) {(a), (sizeof(a) - 1)}
+#define TTS_COLUMN_COUNT 10
+#define TTS_ROW_COUNT    19
+#define TTS_MAX_WIDTH_RATIO 0.8f
+#define TTS_MAX_HEIGTH_RATIO 0.8f
 
 typedef struct TtsPlatform TtsPlatform;
 
@@ -56,27 +59,67 @@ typedef struct {
 
 typedef struct {
 	bool wasDown;
-	bool isDown;
-	uint32_t transitions;
+    bool endedDown;
+    uint32_t transitions;
 } TtsControl;
 
 typedef enum {
-	TtsControlType_None,
-	
-	TtsControlType_Left,
+    TtsControlType_None,
+
+    TtsControlType_Left,
     TtsControlType_Right,
     TtsControlType_Up,
-    TtsControlType_Down, 
+    TtsControlType_Down,
     TtsControlType_Esc,
     TtsControlType_Space,
     TtsControlType_Enter,
+	TtsControlType_C,
+    TtsControlType_P,
     TtsControlType_MouseLeft,
     TtsControlType_MouseRight,
     TtsControlType_MouseCenter,
 
-    TtsControlType_Count,	
+    TtsControlType_Count,
 } TtsControlType;
 
+typedef enum {
+    TtsHorizontalDirection_None,
+
+    TtsHorizontalDirection_Left,
+    TtsHorizontalDirection_Right,
+
+    TtsHorizontalDirection_Count,
+} TtsHorizontalDirection;
+
+typedef enum  {
+    TtsTetraminoType_None,
+
+    TtsTetraminoType_I,
+    TtsTetraminoType_O,
+    TtsTetraminoType_T,
+    TtsTetraminoType_L,
+    TtsTetraminoType_J,
+    TtsTetraminoType_Z,
+    TtsTetraminoType_S,
+
+    TtsTetraminoType_Count,
+} TtsTetraminoType;
+
+typedef enum {
+    TtsRotationType_None,
+
+    TtsRotationType_S,
+    TtsRotationType_R,
+    TtsRotationType_2,
+    TtsRotationType_L,
+
+    TtsRotationType_Count,
+} TtsRotationType;
+
+typedef struct {
+    bool flipCoordinates;
+    bool flipSign;
+} TtsRotation;
 
 typedef struct {
     uint32_t chunkId;
@@ -126,6 +169,24 @@ typedef struct {
 typedef struct Platform Platform;
 
 typedef struct {
+    float x;
+    float y;
+} TtsFloatCoords;
+
+typedef struct {
+    int32_t x;
+    int32_t y;
+} TtsI32Coords;
+
+typedef struct {
+    TtsFloatCoords cells[4];
+} TtsTetraminoPattern;
+
+typedef struct {
+    TtsI32Coords cells[4];
+} TtsTetramino;
+
+typedef struct {
     TtsPlatform *platform;
     TtsAtlas atlas;
     uint32_t windowWidth;
@@ -133,15 +194,20 @@ typedef struct {
     bool isResizing;
     bool wasResizing;
     bool hasSound;
-	Wav music;
-	Wav sound;
-	uint64_t frame;
+    Wav music;
+    Wav sound;
+    uint64_t frame;
     TtsControl controls[TtsControlType_Count];
-	int32_t mouseX;
-	int32_t mouseY;
+    int32_t mouseX;
+    int32_t mouseY;
+    float backgroundColor[4];
+    float playerXInCells;
+    float playerYInCells;
+    float playerXProgression;
+    float playerYProgression;
+    bool paused;
+    TtsTetraminoType playerType;
+    TtsTetraminoType grid[TTS_ROW_COUNT][TTS_COLUMN_COUNT];
+    TtsRotationType playerRotationType;
+    TtsHorizontalDirection horizontalDirection;
 } TtsTetris;
-
-typedef struct {
-    int32_t x;
-    int32_t y;
-} TtsV2I32;

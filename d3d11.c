@@ -105,7 +105,7 @@ static BOOL d3d11Init(TtsTetris *tetris) {
                 swapChainDesc.Height = 0;
                 swapChainDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
                 swapChainDesc.Stereo = 0;
-                swapChainDesc.SampleDesc.Count = 1;
+                swapChainDesc.SampleDesc.Count = 4;
                 swapChainDesc.SampleDesc.Quality = 0;
                 swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
                 swapChainDesc.BufferCount = 2;
@@ -168,7 +168,10 @@ static BOOL d3d11Init(TtsTetris *tetris) {
 
         float4 pixelMain(VsOutput input): SV_TARGET {
             float texAlpha = tex.Sample(samp, input.uv);
-            return (input.mask * (texAlpha * input.color)) + ((1.0f - input.mask) * input.color);
+
+            float4 tek = (input.mask * (texAlpha * input.color));
+            float4 col = ((1.0f - input.mask) * input.color);
+            return (tek + col);
         }
     );
 
@@ -462,20 +465,23 @@ static void platformDrawTextureQuad(
     );
 }
 
-static void platformDrawColorQuad(
-    float x, float y,
-    float width, float height,
+static void platformDrawColorTriangle(
+    float x0, float y0,
+    float x1, float y1,
+    float x2, float y2,
+    float x3, float y3,
     float r, float g, float b, float a,
     TtsPlatform *win32
 ) {
-    d3d11DrawQuad(
-        x, y,
-        width, height,
+    TTS_UNREFERENCED(x3);
+    TTS_UNREFERENCED(y3);
+    d3d11DrawTriangle(
+        x0, y0,
         0.0f, 0.0f,
-        0.0f, 0.0f,
+        x1, y1, 0.0f, 0.0f,
+        x2, y2, 0.0f, 0.0f,
         0.0f,
-        r, g, b, a,
-        &win32->vertices
+        r, g, b, a, &win32->vertices
     );
 }
 
@@ -517,12 +523,10 @@ static void d3d11Render(TtsTetris *tetris, UINT newWidth, UINT newHeight) {
         }
     }
 
-    float backgroundColor[4] = {0.0f, 1.0f, 0.0f, 1.0f};
-
     ID3D11DeviceContext_ClearRenderTargetView(
         win32->deviceContext,
         win32->renderTargetView,
-        backgroundColor
+        tetris->backgroundColor
     );
 
     D3D11_MAPPED_SUBRESOURCE mappedSubresource = {0};
