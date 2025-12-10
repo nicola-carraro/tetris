@@ -89,20 +89,25 @@ LRESULT windowProc(
 
                 case VK_SPACE: {
                     controlType = TtsControlType_Space;
-                    OutputDebugStringA("SPACE ");
                 } break;
 
                 case VK_RETURN: {
                     controlType = TtsControlType_Enter;
                 } break;
+
+                case 'C': {
+                    controlType = TtsControlType_C;
+                } break;
+
+                case 'P': {
+                    controlType = TtsControlType_P;
+                }
             }
 
             if (controlType) {
                 TtsControl *control = &tetris->controls[controlType];
-                control->isDown = message == WM_KEYDOWN;
-                if (control->isDown) {
-                    control->wasDown = 1;
-                }
+                control->endedDown = message == WM_KEYDOWN;
+                control->wasDown = true;
                 bool wasDown = (wParam >> 30) & 1;
 
                 if (message == WM_KEYUP || !wasDown) {
@@ -138,11 +143,12 @@ LRESULT windowProc(
 
             if (controlType) {
                 TtsControl *control = &tetris->controls[controlType];
-                control->isDown = message == WM_LBUTTONDOWN || message == WM_RBUTTONDOWN || message == WM_MBUTTONDOWN;
-
-                if (control->isDown) {
-                    control->wasDown = 1;
+                bool isDownMessage = message == WM_LBUTTONDOWN || message == WM_RBUTTONDOWN || message == WM_MBUTTONDOWN;
+                if (isDownMessage) {
+                    control->wasDown = true;
                 }
+
+                control->endedDown = isDownMessage;
 
                 control->transitions++;
             }
@@ -166,6 +172,7 @@ int WinMain(
 ) {
     TTS_UNREFERENCED(previousInstance);
     TTS_UNREFERENCED(commandLine);
+    TTS_UNREFERENCED(showCommand);
     TtsPlatform win32 = {0};
 
     WNDCLASSEXA windowClass = {0};
@@ -193,7 +200,7 @@ int WinMain(
             0,
             className,
             "Tetris",
-            WS_OVERLAPPEDWINDOW,
+            WS_OVERLAPPEDWINDOW | WS_MAXIMIZE,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
@@ -208,7 +215,7 @@ int WinMain(
 
         if (win32.window && d3d11Init(&tetris)) {
             SetWindowLongPtrA(win32.window, GWLP_USERDATA, (LONG_PTR) &tetris);
-            ShowWindow(win32.window, showCommand);
+            ShowWindow(win32.window, SW_MAXIMIZE);
 
             for (BOOL running = 1; running;) {
                 MSG message = {0};
