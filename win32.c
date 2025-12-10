@@ -19,7 +19,7 @@ typedef struct {
 } VsConstants;
 
 typedef struct  {
-    Vertex vertices[1024];
+    Vertex vertices[6 * 1024];
     UINT vertexCount;
 } Vertices;
 
@@ -124,34 +124,37 @@ static TtsReadResult platformReadEntireFile(char *path) {
 }
 
 static void win32Update(TtsTetris *tetris) {
-    TtsPlatform *win32 = tetris->platform;
-    RECT rect = {0};
-    GetClientRect(win32->window, &rect);
-    UINT newWidth = rect.right - rect.left;
-    UINT newHeight = rect.bottom - rect.top;
+    if (tetris) {
+        TtsPlatform *win32 = tetris->platform;
 
-    POINT mousePosition = {0};
-    GetCursorPos(&mousePosition);
-    ScreenToClient(tetris->platform->window, &mousePosition);
-    tetris->mouseX = mousePosition.x;
-    tetris->mouseY = mousePosition.y;
+        RECT rect = {0};
+        GetClientRect(win32->window, &rect);
+        UINT newWidth = rect.right - rect.left;
+        UINT newHeight = rect.bottom - rect.top;
 
-    float secondsElapsed = 0.0f;
+        POINT mousePosition = {0};
+        GetCursorPos(&mousePosition);
+        ScreenToClient(tetris->platform->window, &mousePosition);
+        tetris->mouseX = mousePosition.x;
+        tetris->mouseY = mousePosition.y;
 
-    LONGLONG currentTicks = win32QueryPerformanceCounter();
+        float secondsElapsed = 0.0f;
 
-    if (win32->previousTicks) {
-        LONGLONG elapsedTicks = currentTicks - win32->previousTicks;
+        LONGLONG currentTicks = win32QueryPerformanceCounter();
 
-        secondsElapsed = (float) elapsedTicks / (float)win32->performanceFrequency;
+        if (win32->previousTicks) {
+            LONGLONG elapsedTicks = currentTicks - win32->previousTicks;
+
+            secondsElapsed = (float) elapsedTicks / (float)win32->performanceFrequency;
+        }
+
+        win32->previousTicks = currentTicks;
+
+        ttsUpdate(tetris, secondsElapsed);
+
+        d3d11Render(tetris, newWidth, newHeight);
+        tetris->windowWidth = newWidth;
+        tetris->windowHeight = newHeight;
+        tetris->wasResizing = tetris->isResizing;
     }
-
-    win32->previousTicks = currentTicks;
-
-    ttsUpdate(tetris, secondsElapsed);
-
-    d3d11Render(tetris, newWidth, newHeight);
-    tetris->windowWidth = newWidth;
-    tetris->windowHeight = newHeight;
-    tetris->wasResizing = tetris->isResizing;
 }
