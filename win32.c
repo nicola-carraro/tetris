@@ -25,7 +25,6 @@ typedef struct  {
 
 struct TtsPlatform {
     HWND window;
-    HANDLE threadEvent;
     ID3D11Device *device;
     ID3D11DeviceContext *deviceContext;
     ID3D11RenderTargetView *renderTargetView;
@@ -38,14 +37,16 @@ struct TtsPlatform {
     ID3D11SamplerState *samplerState;
     ID3D11ShaderResourceView *textureView;
     ID3D11BlendState *blendState;
+    IXAudio2 *xaudio;
+    IXAudio2MasteringVoice *masteringVoice;
+    IXAudio2SourceVoice *music;
+    IXAudio2SourceVoice *sound;
     Vertices vertices;
     LONGLONG performanceFrequency;
     LONGLONG previousTicks;
 };
 
-static DWORD GlobalThreadId = 0;
-
-void win32DebugPrint(_Printf_format_string_ const char *format, ...) {
+static void platformDebugPrint(_Printf_format_string_ const char *format, ...) {
     char buffer[1024] = {0};
 
     va_list arguments;

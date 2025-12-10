@@ -1,16 +1,3 @@
-#define TTS_ASSERT(a) do {if (!(a)) { __debugbreak();}} while (0);
-#define TTS_QUOTE(s) #s
-#define TTS_ARRAYCOUNT(a) (sizeof(a) / sizeof(*a))
-#define TTS_UNREFERENCED(a) a
-#define TTS_FIRST_CODEPOINT L' '
-#define TTS_LAST_CODEPOINT  L'~'
-#define TTS_CODEPOINT_COUNT (TTS_LAST_CODEPOINT - TTS_FIRST_CODEPOINT + 1)
-#define TTS_PIXELS_PER_POINT 1.33333333333333333f
-#define TTS_POINTS_PER_PIXEL 0.75f
-#define TTS_FONT_PATH L"../data/Quantico-Regular.ttf"
-#define TTS_ATLAS_PATH "../data/atlas.dat"
-#define TTS_MAKE_STRING(a) {(a), (sizeof(a) - 1)}
-
 int32_t roundF32ToI32(float f) {
     int32_t result = (int32_t)f;
 
@@ -71,7 +58,72 @@ void ttsDrawString(
     }
 }
 
+Wav ttsWavParseFile(TtsReadResult file) {
+    uint8_t *bytes = (uint8_t*) file.data;
+
+    Wav wav = {0};
+
+    RiffChunk *riffChunk = (RiffChunk *)bytes;
+    wav.riffChunk = riffChunk;
+
+    WavChunkHeader *chunkHeader = 0;
+    for (uint64_t offset = sizeof(RiffChunk); (offset + sizeof(RiffChunk) - 4) < riffChunk->chunkSize && offset < file.size; offset += (chunkHeader->chunkSize + sizeof(WavChunkHeader))) {
+        chunkHeader = (WavChunkHeader *) (bytes + offset);
+
+        if (chunkHeader->chunkId == ' tmf') {
+            WavFmtChunk *fmtChunk = (WavFmtChunk *)(bytes + offset + sizeof(WavChunkHeader));
+            wav.fmtChunk = fmtChunk;
+            #if 0
+            platformDebugPrint("formatTag %u\n", fmtChunk->formatTag);
+            platformDebugPrint("channels %u\n", fmtChunk->channels);
+            platformDebugPrint("samplesPerSec %u\n", fmtChunk->samplesPerSec);
+            platformDebugPrint("avgBytesPerSec %u\n", fmtChunk->avgBytesPerSec);
+            platformDebugPrint("blockAlign %u\n", fmtChunk->blockAlign);
+            platformDebugPrint("bitsPerSample %u\n", fmtChunk->bitsPerSample);
+            platformDebugPrint("extensionSize %u\n", fmtChunk->extensionSize);
+            platformDebugPrint("validBitsPerSample %u\n", fmtChunk->validBitsPerSample);
+            platformDebugPrint("channelMask %u\n", fmtChunk->channelMask);
+            #endif
+        }
+
+        if (chunkHeader->chunkId == 'atad') {
+            void *data = (void *)(bytes + offset + sizeof(WavChunkHeader));
+            wav.data = data;
+            wav.dataSize = chunkHeader->chunkSize;
+        }
+    }
+
+    return wav;
+}
+
+static TtsTetris ttsInit(TtsPlatform *platform, bool hasSound) {
+    TtsTetris result = {0};
+    bool ok = 0;
+    result.platform = platform;
+    result.hasSound = hasSound;
+
+    TtsReadResult musicFile = {0};
+    musicFile = platformReadEntireFile("../data/tetris.wav");
+    ok = musicFile.size > 0;
+
+    TtsReadResult soundFile = {0};
+    if (ok) {
+        soundFile = platformReadEntireFile("../data/sound.wav");
+        ok = musicFile.size > 0;
+    }
+
+    if (ok) {
+        result.music = ttsWavParseFile(musicFile);
+        result.sound = ttsWavParseFile(soundFile);
+    }
+
+    return result;
+}
+
 static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
+    if (tetris->frame == 0) {
+        platformPlayMusic(tetris, tetris->music);
+    }
     static float x = 0.0f;
 
     float velocity = 50.0f;
@@ -99,4 +151,12 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
     if (x > 600.0f) {
         x = 0;
     }
+
+    tetris->frame++;
+}
+
+bool ttsWavIsValid(Wav wav) {
+    bool result = wav.riffChunk && wav.fmtChunk && wav.data;
+
+    return result;
 }

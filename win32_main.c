@@ -15,16 +15,19 @@
 #include <dxgi1_3.h>
 #include <dxgidebug.h>
 #include <d3dcompiler.h>
+#include <xaudio2.h>
 #include <stdio.h>
 #pragma warning(pop)
 
 #include "win32.c"
 #include "d3d11.c"
+#include "xaudio2.c"
 
 #pragma comment(lib, "User32")
 #pragma comment(lib, "D3D11")
 #pragma comment(lib, "DXGI")
 #pragma comment(lib, "d3dcompiler")
+#pragma comment(lib, "Ole32")
 
 LRESULT windowProc(
     HWND window,
@@ -60,7 +63,7 @@ LRESULT windowProc(
         } break;
 
         case WM_CHAR: {
-            PostThreadMessageA(GlobalThreadId, message, wParam, lParam);
+            platformPlaySound(tetris, tetris->sound);
         } break;
 
         default: {
@@ -79,10 +82,7 @@ int WinMain(
 ) {
     TTS_UNREFERENCED(previousInstance);
     TTS_UNREFERENCED(commandLine);
-
-    TtsTetris tetris = {0};
     TtsPlatform win32 = {0};
-    tetris.platform = &win32;
 
     WNDCLASSEXA windowClass = {0};
 
@@ -119,6 +119,8 @@ int WinMain(
             instance,
             0
         );
+        bool hasSound = xaudio2Init(&win32);
+        TtsTetris tetris = ttsInit(&win32, hasSound);
 
         if (win32.window && d3d11Init(&tetris)) {
             SetWindowLongPtrA(win32.window, GWLP_USERDATA, (LONG_PTR) &tetris);

@@ -15,10 +15,12 @@
 #include <dxgidebug.h>
 #include <d3dcompiler.h>
 #include <stdio.h>
+#include <xaudio2.h>
 #pragma warning(pop)
 
 #include "win32.c"
 #include "d3d11.c"
+#include "xaudio2.c"
 
 #pragma warning(push, 0)
 #include "cdwrite.h"
@@ -309,7 +311,7 @@ int  WinMain(
         TTS_ASSERT(ok);
         ok = WriteFile(file, targetPixels, bitmapWidth * bitmapHeight, &bytesWritten, 0);
         DWORD error = GetLastError();
-        win32DebugPrint("%d\n", error);
+        platformDebugPrint("%d\n", error);
         TTS_ASSERT(ok);
         CloseHandle(file);
     }

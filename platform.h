@@ -13,8 +13,14 @@ static void platformDrawTextureQuad(
    float widthInTexture, float heightInTexture,
    float textureWidth, float textureHeight,
    float r, float g, float b, float a,
-   TtsPlatform *win32
+   TtsPlatform *platform
   
 );
 
 static TtsReadResult platformReadEntireFile(char *path);
+
+static void platformDebugPrint(_Printf_format_string_ const char *format, ...);
+
+static void platformPlayMusic(TtsTetris *tetris, Wav wav);
+
+static void platformPlaySound(TtsTetris *tetris, Wav wav);
