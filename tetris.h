@@ -7,7 +7,7 @@
 #define TTS_CODEPOINT_COUNT (TTS_LAST_CODEPOINT - TTS_FIRST_CODEPOINT + 1)
 #define TTS_PIXELS_PER_POINT 1.33333333333333333f
 #define TTS_POINTS_PER_PIXEL 0.75f
-#define TTS_FONT_PATH L"../data/Quantico-Regular.ttf"
+//#define TTS_FONT_PATH L"../data/Quantico-Regular.ttf"
 #define TTS_ATLAS_PATH "../data/atlas.dat"
 #define TTS_MAKE_STRING(a) {(a), (sizeof(a) - 1)}
 #define TTS_ASSERT(a) do {if (!(a)) { __debugbreak();}} while (0);
@@ -19,9 +19,13 @@
 #define TTS_CODEPOINT_COUNT (TTS_LAST_CODEPOINT - TTS_FIRST_CODEPOINT + 1)
 #define TTS_PIXELS_PER_POINT 1.33333333333333333f
 #define TTS_POINTS_PER_PIXEL 0.75f
-#define TTS_FONT_PATH L"../data/Quantico-Regular.ttf"
+#define TTS_FONT_PATH L"../data/Handjet-Regular.ttf"
 #define TTS_ATLAS_PATH "../data/atlas.dat"
 #define TTS_MAKE_STRING(a) {(a), (sizeof(a) - 1)}
+#define TTS_COLUMN_COUNT 10
+#define TTS_ROW_COUNT    19
+#define TTS_MAX_WIDTH_RATIO 0.8f
+#define TTS_MAX_HEIGTH_RATIO 0.8f
 
 typedef struct TtsPlatform TtsPlatform;
 
@@ -70,12 +74,30 @@ typedef enum {
     TtsControlType_Esc,
     TtsControlType_Space,
     TtsControlType_Enter,
+	TtsControlType_P,
     TtsControlType_MouseLeft,
     TtsControlType_MouseRight,
     TtsControlType_MouseCenter,
 
     TtsControlType_Count,	
 } TtsControlType;
+
+
+typedef enum  {
+	TtsTetraminoType_None,
+	
+	TtsTetraminoType_I,
+	TtsTetraminoType_O,
+	TtsTetraminoType_T,
+	TtsTetraminoType_L,
+	TtsTetraminoType_J,
+	TtsTetraminoType_Z,
+	TtsTetraminoType_S,
+	
+		TtsTetraminoType_Count,
+} TtsTetraminoType;
+
+
 
 
 typedef struct {
@@ -126,6 +148,15 @@ typedef struct {
 typedef struct Platform Platform;
 
 typedef struct {
+	int8_t x; 
+		int8_t y;
+} TtsCellCoords;
+
+typedef struct {
+	TtsCellCoords cells[4];
+} TtsTetramino;
+
+typedef struct {
     TtsPlatform *platform;
     TtsAtlas atlas;
     uint32_t windowWidth;
@@ -139,9 +170,15 @@ typedef struct {
     TtsControl controls[TtsControlType_Count];
 	int32_t mouseX;
 	int32_t mouseY;
+	float backgroundColor[4];
+	float playerXInCells;
+	float playerYInCells;
+	bool paused;
+	TtsTetraminoType playerType;
 } TtsTetris;
 
 typedef struct {
     int32_t x;
     int32_t y;
 } TtsV2I32;
+
