@@ -22,6 +22,10 @@
 #define TTS_FONT_PATH L"../data/Quantico-Regular.ttf"
 #define TTS_ATLAS_PATH "../data/atlas.dat"
 #define TTS_MAKE_STRING(a) {(a), (sizeof(a) - 1)}
+#define TTS_COLUMN_COUNT 10
+#define TTS_ROW_COUNT    19
+#define TTS_MAX_WIDTH_RATIO 0.8f
+#define TTS_MAX_HEIGTH_RATIO 0.8f
 
 typedef struct TtsPlatform TtsPlatform;
 
@@ -70,6 +74,7 @@ typedef enum {
     TtsControlType_Esc,
     TtsControlType_Space,
     TtsControlType_Enter,
+	TtsControlType_P,
     TtsControlType_MouseLeft,
     TtsControlType_MouseRight,
     TtsControlType_MouseCenter,
@@ -139,6 +144,10 @@ typedef struct {
     TtsControl controls[TtsControlType_Count];
 	int32_t mouseX;
 	int32_t mouseY;
+	float backgroundColor[4];
+	int32_t playerColumn;
+	float playerYInCells;
+	bool paused;
 } TtsTetris;
 
 typedef struct {

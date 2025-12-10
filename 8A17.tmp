@@ -168,10 +168,7 @@ static BOOL d3d11Init(TtsTetris *tetris) {
 
         float4 pixelMain(VsOutput input): SV_TARGET {
             float texAlpha = tex.Sample(samp, input.uv);
-
-            float4 tek = (input.mask * (texAlpha * input.color));
-            float4 col = ((1.0f - input.mask) * input.color);
-            return (tek + col);
+            return (input.mask * (texAlpha * input.color)) + ((1.0f - input.mask) * input.color);
         }
     );
 

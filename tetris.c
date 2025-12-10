@@ -106,6 +106,11 @@ static TtsTetris ttsInit(TtsPlatform *platform, bool hasSound) {
     musicFile = platformReadEntireFile("../data/tetris.wav");
     ok = musicFile.size > 0;
 
+    result.backgroundColor[0] = 1.0f;
+    result.backgroundColor[1] = 1.0f;
+    result.backgroundColor[2] = 1.0f;
+    result.backgroundColor[3] = 1.0f;
+
     TtsReadResult soundFile = {0};
     if (ok) {
         soundFile = platformReadEntireFile("../data/sound.wav");
@@ -120,38 +125,234 @@ static TtsTetris ttsInit(TtsPlatform *platform, bool hasSound) {
     return result;
 }
 
+static void drawCell(
+    TtsTetris *tetris,
+    int32_t row,
+    int32_t column,
+    float r,
+    float g,
+    float b,
+    float a,
+    float cellSide,
+    float gridX,
+    float gridY
+)  {
+    float x = gridX + (column * cellSide);
+    float y = gridY + (row * cellSide);
+    float quadSide = cellSide * 0.9f;
+    float quadMargin = (cellSide - quadSide) / 2.0f;
+    float quadX = x + quadMargin;
+    float quadY = y + quadMargin;
+    float quadHeight = quadSide;
+    float quadWidth = quadSide;
+
+    platformDrawColorQuad(
+        quadX, quadY,
+        quadWidth, quadHeight,
+        r, g, b, a,
+        tetris->platform
+    );
+}
+
+static inline float color255To1(float color) {
+    float result = (color / 255.0f);
+
+    return result;
+}
+
+uint32_t ttsPressCount(TtsControl control) {
+    uint32_t result = 0;
+
+    if (control.transitions > 0) {
+        result = control.transitions / 2;
+        if (control.isDown) {
+            result++;
+        }
+    }
+
+    return result;
+}
+
 static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
     if (tetris->frame == 0) {
         platformPlayMusic(tetris, tetris->music);
+        tetris->playerColumn = 5;
+        tetris->playerYInCells = -4.0f;
+    }
+    TTS_UNREFERENCED(secondsElapsed);
+
+    if (ttsPressCount(tetris->controls[TtsControlType_P]) % 2 != 0) {
+        tetris->paused = !tetris->paused;
     }
 
-    static float x = 0.0f;
+    float velocity = 5.0f;
 
-    float velocity = 50.0f;
+    if (!tetris->wasResizing && !tetris->paused) {
+        tetris->playerYInCells += velocity * secondsElapsed;
+    }
 
-    TtsString string = TTS_MAKE_STRING("Tetris!");
+    if (tetris->playerYInCells > (float)TTS_ROW_COUNT - 4.0f + 1.0f) {
+        tetris->playerYInCells = -4.0f;
+    }
+
+    // static float x = 0.0f;
+
+    int32_t boardWidthInColumns = TTS_COLUMN_COUNT + 2;
+    int32_t boardWidthInRows = TTS_ROW_COUNT + 2;
+    float aspectRatio = ((float)tetris->windowWidth / boardWidthInColumns) / ((float)tetris->windowHeight / boardWidthInRows);
+    float cellSideInPixels = 0.0f;
+    if (aspectRatio > 1.0f) {
+        cellSideInPixels = ((float)tetris->windowHeight * TTS_MAX_HEIGTH_RATIO) / boardWidthInRows;
+    } else {
+        cellSideInPixels = ((float)tetris->windowWidth * TTS_MAX_WIDTH_RATIO) / boardWidthInColumns;
+    }
+
+    float gridWidth = cellSideInPixels * TTS_COLUMN_COUNT;
+    float gridHeight = cellSideInPixels * TTS_ROW_COUNT;
+    float gridX = cellSideInPixels * 2.0f;
+    float gridY = ((float)tetris->windowHeight - gridHeight) / 2.0f;
+
+    // Background
+    {
+        platformDrawColorQuad(
+            gridX, gridY,
+            gridWidth, gridHeight,
+            0.0f, 0.0f, 0.0f, 1.0f,
+            tetris->platform
+        );
+    }
+
+    //Frame
+    {
+        float r = color255To1(102.0f);
+        float g = color255To1(102.0f);
+        float b = color255To1(102.0f);
+        float a = 1.0f;
+
+        for (int32_t column = -1; column < TTS_COLUMN_COUNT + 1; column++) {
+            int32_t row = -1;
+            drawCell(
+                tetris,
+                row,
+                column,
+                r,
+                g,
+                b,
+                a,
+                cellSideInPixels,
+                gridX,
+                gridY
+            );
+
+            row = TTS_ROW_COUNT;
+            drawCell(
+                tetris,
+                row,
+                column,
+                r,
+                g,
+                b,
+                a,
+                cellSideInPixels,
+                gridX,
+                gridY
+            );
+        }
+
+        for (int32_t row = 0; row < TTS_ROW_COUNT; row++) {
+            int32_t column = -1;
+            drawCell(
+                tetris,
+                row,
+                column,
+                r,
+                g,
+                b,
+                a,
+                cellSideInPixels,
+                gridX,
+                gridY
+            );
+
+            column = TTS_COLUMN_COUNT;
+            drawCell(
+                tetris,
+                row,
+                column,
+                r,
+                g,
+                b,
+                a,
+                cellSideInPixels,
+                gridX,
+                gridY
+            );
+        }
+    }
+
+    // Player
+    {
+        float r = color255To1(205.0f);
+        float g = color255To1(205.0f);
+        float b = color255To1(0.0f);
+        float a = 1.0f;
+
+        for (int32_t cell = 0; cell < 4; cell++) {
+            int32_t row = (int32_t)tetris->playerYInCells + cell;
+
+            if (row >= 0) {
+                drawCell(
+                    tetris,
+                    row,
+                    tetris->playerColumn,
+                    r, g, b, a,
+                    cellSideInPixels,
+                    gridX,
+                    gridY
+                );
+            }
+        }
+    }
+
+    TtsString score = TTS_MAKE_STRING("Score: 0 009 000");
     ttsDrawString(
         tetris,
-        string,
-        10.0f,  10.0f,
+        score,
+        gridX + gridWidth + (cellSideInPixels * 2),
+        gridY + (cellSideInPixels * 2),
         1.0f,
-        0.0f, 0.0f, 1.0f, 1.0f
+        0.0f, 0.0f, 0.0f, 1.0f
     );
 
-    platformDrawColorQuad(
-        x, 100.0f,
-        100.0f, 50.0f,
-        1.0f, 0.0f, 0.0f, 1.0f,
-        tetris->platform
+    TtsString level = TTS_MAKE_STRING("Level: 001");
+    ttsDrawString(
+        tetris,
+        level,
+        gridX + gridWidth + (cellSideInPixels * 2),
+        gridY + gridHeight - (cellSideInPixels * 2) - tetris->atlas.lineHeightInPixels,
+        1.0f,
+        0.0f, 0.0f, 0.0f, 1.0f
     );
 
-    if (!tetris->wasResizing) {
-        x += velocity * secondsElapsed;
-    }
+    // TtsString string = TTS_MAKE_STRING("Tetris!");
+    // ttsDrawString(
+    // tetris,
+    // string,
+    // 10.0f,  10.0f,
+    // 1.0f,
+    // 0.0f, 0.0f, 1.0f, 1.0f
+    // );
 
-    if (x > 600.0f) {
-        x = 0;
-    }
+    // platformDrawColorQuad(
+    // x, 100.0f,
+    // 100.0f, 50.0f,
+    // 1.0f, 0.0f, 0.0f, 1.0f,
+    // tetris->platform
+    // );
+
+    // if (x > 600.0f) {
+    // x = 0;
+    // }
 
     for (uint32_t controlIndex = 1; controlIndex < TTS_ARRAYCOUNT(tetris->controls); controlIndex++) {
         tetris->controls[controlIndex].wasDown = tetris->controls[controlIndex].isDown;
