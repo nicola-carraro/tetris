@@ -4,7 +4,7 @@ static void platformDrawTextureQuad(
     float xInTexture, float yInTexture,
     float widthInTexture, float heightInTexture,
     float textureWidth, float textureHeight,
-    float r, float g, float b, float a,
+    TtsColor color,
     TtsPlatform *platform
 );
 
@@ -13,7 +13,7 @@ static void platformDrawColorTriangle(
     float x1, float y1,
     float x2, float y2,
     float x3, float y3,
-    float r, float g, float b, float a,
+    TtsColor color,
     TtsPlatform *win32
 );
 

@@ -29,6 +29,13 @@
 typedef struct TtsPlatform TtsPlatform;
 
 typedef struct {
+	float r;
+	float g;
+	float b;
+	float a;
+} TtsColor;
+
+typedef struct {
     char *text;
     uint64_t size;
 } TtsString;
@@ -200,7 +207,7 @@ typedef struct {
     TtsControl controls[TtsControlType_Count];
     int32_t mouseX;
     int32_t mouseY;
-    float backgroundColor[4];
+    TtsColor backgroundColor;
     float playerXInCells;
     float playerYInCells;
     float playerXProgression;

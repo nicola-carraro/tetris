@@ -384,7 +384,7 @@ static void d3d11AddVertex(
     float x, float y,
     float u, float v,
     float mask,
-    float r, float g, float b, float a,
+    TtsColor color,
     Vertices *vertices
 ) {
     if (vertices->vertexCount < TTS_ARRAYCOUNT(vertices->vertices)) {
@@ -395,10 +395,10 @@ static void d3d11AddVertex(
             vertex.u = u;
             vertex.v = v;
             vertex.mask = mask;
-            vertex.r = r;
-            vertex.g = g;
-            vertex.b = b;
-            vertex.a = a;
+            vertex.r = color.r / 255.0f;
+            vertex.g = color.g / 255.0f;
+            vertex.b = color.b / 255.0f;
+            vertex.a = color.a / 255.0f;
         }
 
         vertices->vertices[vertices->vertexCount++] = vertex;
@@ -415,12 +415,12 @@ static void d3d11DrawTriangle (
     float x2, float y2,
     float u2, float v2,
     float mask,
-    float r,  float g, float b, float a,
+    TtsColor color,
     Vertices *vertices
 ) {
-    d3d11AddVertex(x0, y0, u0, v0, mask, r, g, b, a, vertices);
-    d3d11AddVertex(x1, y1, u1, v1, mask, r, g, b, a, vertices);
-    d3d11AddVertex(x2, y2, u2, v2, mask, r, g, b, a, vertices);
+    d3d11AddVertex(x0, y0, u0, v0, mask, color, vertices);
+    d3d11AddVertex(x1, y1, u1, v1, mask, color, vertices);
+    d3d11AddVertex(x2, y2, u2, v2, mask, color, vertices);
 }
 
 static void d3d11DrawQuad(
@@ -429,7 +429,7 @@ static void d3d11DrawQuad(
     float u, float v,
     float uWidth, float vHeight,
     float mask,
-    float r, float g, float b, float a,
+    TtsColor color,
     Vertices *vertices
 ) {
     float left = x;
@@ -441,8 +441,8 @@ static void d3d11DrawQuad(
     float vTop = v;
     float vBottom = v + vHeight;
 
-    d3d11DrawTriangle(left, top, uLeft, vTop,  right, top, uRight, vTop, left, bottom, uLeft, vBottom, mask, r, g, b, a, vertices);
-    d3d11DrawTriangle(right, top, uRight, vTop, right, bottom, uRight, vBottom, left, bottom, uLeft, vBottom, mask, r, g, b, a, vertices);
+    d3d11DrawTriangle(left, top, uLeft, vTop,  right, top, uRight, vTop, left, bottom, uLeft, vBottom, mask, color, vertices);
+    d3d11DrawTriangle(right, top, uRight, vTop, right, bottom, uRight, vBottom, left, bottom, uLeft, vBottom, mask, color, vertices);
 }
 
 static void platformDrawTextureQuad(
@@ -451,7 +451,7 @@ static void platformDrawTextureQuad(
     float xInTexture, float yInTexture,
     float widthInTexture, float heightInTexture,
     float textureWidth, float textureHeight,
-    float r, float g, float b, float a,
+    TtsColor color,
     TtsPlatform *win32
 ) {
     d3d11DrawQuad(
@@ -460,7 +460,7 @@ static void platformDrawTextureQuad(
         xInTexture / textureWidth, yInTexture / textureHeight,
         widthInTexture / textureWidth, heightInTexture / textureHeight,
         1.0f,
-        r, g, b, a,
+        color,
         &win32->vertices
     );
 }
@@ -470,7 +470,7 @@ static void platformDrawColorTriangle(
     float x1, float y1,
     float x2, float y2,
     float x3, float y3,
-    float r, float g, float b, float a,
+    TtsColor color,
     TtsPlatform *win32
 ) {
     TTS_UNREFERENCED(x3);
@@ -481,7 +481,8 @@ static void platformDrawColorTriangle(
         x1, y1, 0.0f, 0.0f,
         x2, y2, 0.0f, 0.0f,
         0.0f,
-        r, g, b, a, &win32->vertices
+        color,
+        &win32->vertices
     );
 }
 
@@ -523,10 +524,17 @@ static void d3d11Render(TtsTetris *tetris, UINT newWidth, UINT newHeight) {
         }
     }
 
+    float normalizedBackground[4] = {
+        tetris->backgroundColor.r / 255.0f,
+        tetris->backgroundColor.g / 255.0f,
+        tetris->backgroundColor.b / 255.0f,
+        tetris->backgroundColor.a / 255.0f,
+    };
+
     ID3D11DeviceContext_ClearRenderTargetView(
         win32->deviceContext,
         win32->renderTargetView,
-        tetris->backgroundColor
+        normalizedBackground
     );
 
     D3D11_MAPPED_SUBRESOURCE mappedSubresource = {0};
