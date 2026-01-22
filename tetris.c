@@ -8,6 +8,15 @@ static int32_t ttsRoundF32ToI32(float f) {
     return result;
 }
 
+static TtsString ttsMakeString (char *text, uint64_t size) {
+    TtsString result = {0};
+
+    result.text = text;
+    result.size = size;
+
+    return result;
+}
+
 static inline int32_t ttsFloatToI32Floor(float f) {
     int32_t result = (int32_t) f;
 
@@ -288,6 +297,13 @@ static void ttsDrawCellLikeQuad(
     );
 }
 
+static float ttsGetCellMargin(float cellSide) {
+    float internalSide = cellSide * 0.7f;
+    float result = (cellSide - internalSide) / 2.0f;
+
+    return result;
+}
+
 static void ttsDrawCell(
     TtsTetris *tetris,
     int32_t row, int32_t column,
@@ -297,8 +313,7 @@ static void ttsDrawCell(
 )  {
     float x = gridX + (column * cellSide);
     float y = gridY + (row * cellSide);
-    float internalSide = cellSide * 0.7f;
-    float margin = (cellSide - internalSide) / 2.0f;
+    float margin = ttsGetCellMargin(cellSide);
 
     ttsDrawCellLikeQuad(
         tetris,
@@ -387,56 +402,6 @@ static TtsTetramino ttsGetPlayerCells(TtsTetris *tetris) {
     return result;
 }
 
-static float ttsGetSpawnX(TtsTetraminoType type) {
-    TTS_ASSERT(type > TtsTetraminoType_None);
-    TTS_ASSERT(type < TtsTetraminoType_Count);
-
-    TtsTetraminoPattern pattern = ttsGetTetraminoPattern(type);
-
-    float minX = 5.0f;
-    float maxX = -5.0f;
-
-    for (uint32_t cellIndex = 0; cellIndex < TTS_ARRAYCOUNT(pattern.cells); cellIndex++) {
-        float x = pattern.cells[cellIndex].x;
-
-        if (x < minX) {
-            minX = x;
-        }
-        if (x > maxX) {
-            maxX = x;
-        }
-    }
-
-    float horizontalSpan = maxX - minX;
-
-    float result = 0.0f;
-    if ((int32_t)horizontalSpan % 2 == 0) {
-        result = 4.5f;
-    } else {
-        result = 5.0f;
-    }
-
-    return result;
-}
-
-static float ttsGetSpawnY(TtsTetraminoType type) {
-    float maxY = -5.0f;
-
-    TtsTetraminoPattern pattern = ttsGetTetraminoPattern(type);
-
-    for (uint32_t cellIndex = 0; cellIndex < TTS_ARRAYCOUNT(pattern.cells); cellIndex++) {
-        float y = pattern.cells[cellIndex].y;
-
-        if (y > maxY) {
-            maxY = y;
-        }
-    }
-
-    float result = -maxY - 1.0f;
-
-    return result;
-}
-
 static bool ttsIsCellAvailable(TtsTetris *tetris, int32_t x, int32_t y) {
     bool result = false;
 
@@ -519,14 +484,14 @@ void ttsRotatePlayer(TtsTetris *tetris, int32_t rotation) {
     }
 }
 
-static void spawnTetramino(TtsTetris *tetris, TtsTetraminoType type) {
-    tetris->playerType = type;
-    tetris->playerXInCells = ttsGetSpawnX(type);
-    tetris->playerYInCells = ttsGetSpawnY(type);
-    tetris->playerRotationType = TtsRotationType_None + 1;
-    tetris->horizontalDirection = TtsHorizontalDirection_None;
-    tetris->playerXProgression = 0.0f;
-    tetris->playerYProgression = 0.0f;
+static TtsTetraminoType getNextType(TtsTetraminoType type) {
+    TtsTetraminoType result = type + 1;
+
+    if (result >= TtsTetraminoType_Count) {
+        result = TtsTetraminoType_None + 1;
+    }
+
+    return result;
 }
 
 static bool ttsIsRowFull(TtsTetris *tetris, int32_t row) {
@@ -560,6 +525,102 @@ static void ttsClearRow(TtsTetris *tetris, int32_t y) {
     for (int32_t x = 0; x < TTS_COLUMN_COUNT; x++) {
         tetris->grid[y][x] = TtsTetraminoType_None;
     }
+}
+
+static TtsFloatCoords ttsGetTetraminoSizeInCells(TtsTetraminoType tetraminoType) {
+    TtsTetraminoPattern pattern = ttsGetTetraminoPattern(tetraminoType);
+
+    TtsFloatCoords min = {5.0f, 5.0f};
+    TtsFloatCoords max = {-5.0f, -5.0f};
+
+    for (uint32_t cellIndex = 0; cellIndex < TTS_ARRAYCOUNT(pattern.cells); cellIndex++) {
+        TtsFloatCoords cell = pattern.cells[cellIndex];
+        if (cell.x > max.x) {
+            max.x = cell.x;
+        }
+        if (cell.y > max.y) {
+            max.y = cell.y;
+        }
+
+        if (cell.x < min.x) {
+            min.x = cell.x;
+        }
+        if (cell.y < min.y) {
+            min.y = cell.y;
+        }
+    }
+
+    TtsFloatCoords result = {max.x - min.x + 1.0f, max.y - min.y + 1.0f};
+
+    return result;
+}
+
+static TtsPatternFeatures ttsGetPatternFeatures(TtsTetraminoType type) {
+    TtsTetraminoPattern pattern = ttsGetTetraminoPattern(type);
+
+    float minX = 5.0f;
+    float minY = 5.0f;
+    float maxX = -5.0f;
+    float maxY = -5.0f;
+
+    for (uint32_t cellIndex = 0; cellIndex < TTS_ARRAYCOUNT(pattern.cells); cellIndex++) {
+        TtsFloatCoords cell = pattern.cells[cellIndex];
+        minX = TTS_MIN(cell.x, minX);
+        minY = TTS_MIN(cell.y, minY);
+        maxX = TTS_MAX(cell.x, maxX);
+        maxY = TTS_MAX(cell.y, maxY);
+    }
+
+    TtsPatternFeatures result = {0};
+
+    result.minX = minX - 0.5f;
+    result.minY = minY - 0.5f;
+    result.maxX = maxX + 0.5f;
+    result.maxY = maxY + 0.5f;
+    result.width = result.maxX - result.minX;
+    result.height = result.maxY - result.minY;
+    result.esteticCenter.x = result.minX + (result.width / 2.0f);
+    result.esteticCenter.y = result.minY + (result.height / 2.0f);
+
+    return result;
+}
+
+static float ttsGetSpawnX(TtsTetraminoType type) {
+    TTS_ASSERT(type > TtsTetraminoType_None);
+    TTS_ASSERT(type < TtsTetraminoType_Count);
+
+    TtsPatternFeatures features = ttsGetPatternFeatures(type);
+
+    float result = ((float)TTS_COLUMN_COUNT / 2.0f);
+
+    if ((int32_t)features.width % 2 != 0) {
+        result -= 0.5f;
+    }
+
+    return result;
+}
+
+static float ttsGetSpawnY(TtsTetraminoType type) {
+    TtsPatternFeatures features = ttsGetPatternFeatures(type);
+
+    float result = -features.maxY;
+
+    return result;
+}
+
+static void spawnTetramino(TtsTetris *tetris) {
+    if (tetris->nextPlayerType == TtsTetraminoType_None) {
+        tetris->nextPlayerType = getNextType(tetris->playerType);
+    }
+
+    tetris->playerType = tetris->nextPlayerType;
+    tetris->nextPlayerType = getNextType(tetris->playerType);
+    tetris->playerXInCells = ttsGetSpawnX(tetris->playerType);
+    tetris->playerYInCells = ttsGetSpawnY(tetris->playerType);
+    tetris->playerRotationType = TtsRotationType_None + 1;
+    tetris->horizontalDirection = TtsHorizontalDirection_None;
+    tetris->playerXProgression = 0.0f;
+    tetris->playerYProgression = 0.0f;
 }
 
 static void ttsMoveVertically(TtsTetris *tetris) {
@@ -613,19 +674,75 @@ static void ttsMoveVertically(TtsTetris *tetris) {
             ttsClearRow(tetris, 0);
         }
 
-        tetris->playerType++;
-        if (tetris->playerType >= TtsTetraminoType_Count) {
-            tetris->playerType = TtsTetraminoType_None + 1;
-        }
-
-        spawnTetramino(tetris, tetris->playerType);
+        spawnTetramino(tetris);
     }
+}
+
+static TtsFloatCoords ttsCenterTetraminoInBox(TtsTetraminoType type, float x, float y, float width, float height, float cellSideInPixels) {
+    TtsPatternFeatures features = ttsGetPatternFeatures(type);
+
+    TtsFloatCoords result = {0};
+
+    result.x = x + (width / 2.0f) - (features.esteticCenter.x * cellSideInPixels);
+    result.y = y + (height / 2.0f) - (features.esteticCenter.y * cellSideInPixels);
+
+    return result;
+}
+
+static void ttsDrawCenteredTetramino(TtsTetris *tetris, TtsTetraminoType type, float boxX, float  boxY, float boxWidth,float  boxHeight,float  cellSideInPixels) {
+    TtsFloatCoords offset = ttsCenterTetraminoInBox(type, boxX, boxY, boxWidth, boxHeight, cellSideInPixels);
+
+    TtsColor color = ttsGetTetraminoColor(type);
+
+    TtsTetraminoPattern nextPattern = ttsGetTetraminoPattern(type);
+
+    for (uint32_t cellIndex = 0; cellIndex < TTS_ARRAYCOUNT(nextPattern.cells); cellIndex++) {
+        TtsFloatCoords cell = nextPattern.cells[cellIndex];
+
+        float cellX = ((cell.x - 0.5f) * cellSideInPixels) + offset.x;
+        float cellY = ((cell.y - 0.5f) * cellSideInPixels) + offset.y;
+
+        ttsDrawCellLikeQuad(
+            tetris,
+            cellX, cellY,
+            cellSideInPixels, cellSideInPixels,
+            ttsGetCellMargin(cellSideInPixels),
+            color
+        );
+    }
+}
+
+static void ttsDrawNextTetramino(TtsTetris * tetris, float boxX, float boxY, float boxWidth, float boxHeight, float cellSideInPixels) {
+    ttsDrawCenteredTetramino(
+        tetris,
+        tetris->nextPlayerType,
+        boxX, boxY,
+        boxWidth, boxHeight,
+        cellSideInPixels
+    );
+}
+
+static float ttsGetStringWidthInPixels(TtsAtlas font, TtsString string) {
+    float result = 0.0f;
+
+    for (uint32_t glyphIndex = 0; glyphIndex < string.size; glyphIndex++) {
+        char c = string.text[glyphIndex];
+        TtsGlyph glyph = font.glyphs[c - TTS_FIRST_CODEPOINT];
+
+        if (glyphIndex == string.size - 1) {
+            result += glyph.bitmapWidthInPixels;
+        } else {
+            result += glyph.advanceWidthInPixels;
+        }
+    }
+
+    return result;
 }
 
 static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
     if (tetris->frame == 0) {
         platformPlayMusic(tetris, tetris->music);
-        spawnTetramino(tetris, TtsTetraminoType_I);
+        spawnTetramino(tetris);
     }
 
     if (ttsPressCount(tetris->controls[TtsControlType_P]) % 2 != 0) {
@@ -645,7 +762,17 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
     float gridWidth = cellSideInPixels * TTS_COLUMN_COUNT;
     float gridHeight = cellSideInPixels * TTS_ROW_COUNT;
     float gridX = ((float)tetris->windowWidth - gridWidth) / 2.0f;
-    float gridY = ((float)tetris->windowHeight - gridHeight) / 2.0f;
+
+    float padding = 20.0f;
+
+    float boxHeight = tetris->atlas.lineHeightInPixels * 2.0f;
+    float boxWidth = boxHeight * 3.0f;
+
+    float sideMargin = (tetris->windowWidth - gridWidth - (cellSideInPixels * 2.0f)) / 2.0f;
+
+    bool drawLabels = gridHeight > boxHeight * 2.0f + padding && sideMargin > boxWidth + (padding * 2.0f);
+
+    float gridY = drawLabels ? ((float)tetris->windowHeight - gridHeight) / 2.0f : ((float)tetris->windowHeight - gridHeight) - cellSideInPixels;
 
     // Background
     {
@@ -823,59 +950,151 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
         }
     }
 
-    float boxHeight = cellSideInPixels * 4;
-    float labelX = gridX + gridWidth + (cellSideInPixels * 3);
     {
-        {
-            ttsDrawCellLikeQuad(
-                tetris,
-                gridX + gridWidth + (cellSideInPixels * 2), gridY,
-                gridWidth, boxHeight,
-                5.0f,
-                ttsMakeColor(223.0f, 240.0f, 216.0f, 255.0f)
-            );
+        if (drawLabels) {
+            float rightBoxX = gridX + gridWidth + (padding * 2.0f);
+            float rightLabelX = gridX + gridWidth + (padding * 3.0f);
+            float leftBoxX = gridX - (padding * 2.0f) - boxWidth;
+            float leftLabelX = leftBoxX + padding;
+            float upperBoxY = gridY;
+            float lowerBoxY = gridY + gridHeight - boxHeight;
 
-            TtsString next = TTS_MAKE_STRING("Next:");
-            ttsDrawString(
+            TtsColor boxColor = ttsMakeColor(223.0f, 240.0f, 216.0f, 255.0f);
+            TtsColor fontColor = ttsMakeColor(0.0f, 0.0f, 0.0f, 255.0f);
+
+            {
+                ttsDrawCellLikeQuad(
+                    tetris,
+                    leftBoxX, upperBoxY,
+                    boxWidth, boxHeight,
+                    5.0f,
+                    boxColor
+                );
+
+                ttsDrawString(
+                    tetris,
+                    TTS_MAKE_STRING("Lines:"),
+                    leftLabelX,
+                    upperBoxY,
+                    1.0f,
+                    fontColor
+                );
+
+                ttsDrawString(
+                    tetris,
+                    TTS_MAKE_STRING("00023"),
+                    leftLabelX,
+                    upperBoxY + tetris->atlas.lineHeightInPixels,
+                    1.0f,
+                    fontColor
+                );
+            }
+
+            {
+                ttsDrawCellLikeQuad(
+                    tetris,
+                    leftBoxX, lowerBoxY,
+                    boxWidth, boxHeight,
+                    5.0f,
+                    boxColor
+                );
+            }
+
+            {
+                float boxMargin = 5.0f;
+                ttsDrawCellLikeQuad(
+                    tetris,
+                    rightBoxX, upperBoxY,
+                    boxWidth, boxHeight,
+                    boxMargin,
+                    boxColor
+                );
+
+                TtsString next = TTS_MAKE_STRING("Next:");
+
+                ttsDrawString(
+                    tetris,
+                    next,
+                    rightLabelX,
+                    upperBoxY,
+                    1.0f,
+                    fontColor
+                );
+
+                // float nextTetraminoX = rightBoxX + boxMargin + ((boxWidth - (2.0f * boxMargin)) * 0.6f);
+                // float nextTetraminoY = upperBoxY + boxMargin + ((boxHeight - (2.0f * boxMargin)) * 0.5f);
+                {
+                    float strWidth = ttsGetStringWidthInPixels(tetris->atlas, next);
+                    float x = rightLabelX + strWidth;
+                    float y = upperBoxY + boxMargin;
+                    float width = boxWidth - (boxMargin * 2.0f) - padding - strWidth;
+                    float height = boxHeight - (boxMargin * 2.0f);
+                    ttsDrawNextTetramino(tetris, x , y,  width,  height,  cellSideInPixels);
+                }
+            }
+
+            {
+                ttsDrawCellLikeQuad(
+                    tetris,
+                    leftBoxX, lowerBoxY,
+                    boxWidth, boxHeight,
+                    5.0f,
+                    boxColor
+                );
+                ttsDrawString(
+                    tetris,
+                    TTS_MAKE_STRING("Level:"),
+                    leftLabelX,
+                    lowerBoxY,
+                    1.0f,
+                    fontColor
+                );
+
+                ttsDrawString(
+                    tetris,
+                    TTS_MAKE_STRING("12"),
+                    leftLabelX,
+                    lowerBoxY + tetris->atlas.lineHeightInPixels,
+                    1.0f,
+                    fontColor
+                );
+            }
+
+            {
+                ttsDrawCellLikeQuad(
+                    tetris,
+                    rightBoxX, lowerBoxY,
+                    boxWidth, boxHeight,
+                    5.0f,
+                    boxColor
+                ) ;
+
+                ttsDrawString(
+                    tetris,
+                    TTS_MAKE_STRING("Score:"),
+                    rightLabelX,
+                    lowerBoxY,
+                    1.0f,
+                    fontColor
+                );
+
+                ttsDrawString(
+                    tetris,
+                    TTS_MAKE_STRING("0.000.000.350"),
+                    rightLabelX,
+                    lowerBoxY + tetris->atlas.lineHeightInPixels,
+                    1.0f,
+                    fontColor
+                );
+            }
+        } else {
+            ttsDrawNextTetramino(
                 tetris,
-                next,
-                labelX,
-                gridY,
-                1.0f,
-                ttsMakeColor(0.0f, 0.0f, 0.0f, 255.0f)
+                0.0f, 0.0f,
+                (float) tetris->windowWidth, gridY - cellSideInPixels,
+                cellSideInPixels
             );
         }
-    }
-
-    {
-        float scoreY = gridY + gridHeight - boxHeight;
-        ttsDrawCellLikeQuad(
-            tetris,
-            gridX + gridWidth + (cellSideInPixels * 2), scoreY,
-            gridWidth, boxHeight,
-            5.0f,
-            ttsMakeColor(223.0f, 240.0f, 216.0f, 255.0f)
-        ) ;
-
-        TtsString score = TTS_MAKE_STRING("Score:");
-        ttsDrawString(
-            tetris,
-            score,
-            labelX,
-            scoreY,
-            1.0f,
-            ttsMakeColor(0.0f, 0.0f, 0.0f, 255.0f)
-        );
-
-        TtsString points = TTS_MAKE_STRING("0.000.000.350");
-        ttsDrawString(
-            tetris,
-            points,
-            labelX,
-            scoreY + tetris->atlas.lineHeightInPixels,
-            1.0f,
-            ttsMakeColor(0.0f, 0.0f, 0.0f, 255.0f)
-        );
     }
 
     for (uint32_t controlIndex = 1; controlIndex < TTS_ARRAYCOUNT(tetris->controls); controlIndex++) {

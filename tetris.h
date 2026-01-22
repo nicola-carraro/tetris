@@ -7,24 +7,15 @@
 #define TTS_CODEPOINT_COUNT (TTS_LAST_CODEPOINT - TTS_FIRST_CODEPOINT + 1)
 #define TTS_PIXELS_PER_POINT 1.33333333333333333f
 #define TTS_POINTS_PER_PIXEL 0.75f
-#define TTS_ATLAS_PATH "../data/atlas.dat"
-#define TTS_MAKE_STRING(a) {(a), (sizeof(a) - 1)}
-#define TTS_ASSERT(a) do {if (!(a)) { __debugbreak();}} while (0);
-#define TTS_QUOTE(s) #s
-#define TTS_ARRAYCOUNT(a) (sizeof(a) / sizeof(*a))
-#define TTS_UNREFERENCED(a) a
-#define TTS_FIRST_CODEPOINT L' '
-#define TTS_LAST_CODEPOINT  L'~'
-#define TTS_CODEPOINT_COUNT (TTS_LAST_CODEPOINT - TTS_FIRST_CODEPOINT + 1)
-#define TTS_PIXELS_PER_POINT 1.33333333333333333f
-#define TTS_POINTS_PER_PIXEL 0.75f
+#define TTS_MAKE_STRING(a) ttsMakeString((a), (sizeof(a) - 1))
 #define TTS_FONT_PATH L"../data/Handjet-Regular.ttf"
 #define TTS_ATLAS_PATH "../data/atlas.dat"
-#define TTS_MAKE_STRING(a) {(a), (sizeof(a) - 1)}
 #define TTS_COLUMN_COUNT 10
 #define TTS_ROW_COUNT    19
 #define TTS_MAX_WIDTH_RATIO 0.8f
 #define TTS_MAX_HEIGTH_RATIO 0.8f
+#define TTS_MAX(a, b) ((a) > (b) ? (a) : (b))
+#define TTS_MIN(a, b) ((a) < (b) ? (a) : (b))
 
 typedef struct TtsPlatform TtsPlatform;
 
@@ -194,6 +185,16 @@ typedef struct {
 } TtsTetramino;
 
 typedef struct {
+	TtsFloatCoords esteticCenter;
+	float minX;
+	float minY;
+	float maxX;
+	float maxY;
+	float width;
+	float height;
+} TtsPatternFeatures;
+
+typedef struct {
     TtsPlatform *platform;
     TtsAtlas atlas;
     uint32_t windowWidth;
@@ -214,6 +215,7 @@ typedef struct {
     float playerYProgression;
     bool paused;
     TtsTetraminoType playerType;
+	TtsTetraminoType nextPlayerType;
     TtsTetraminoType grid[TTS_ROW_COUNT][TTS_COLUMN_COUNT];
     TtsRotationType playerRotationType;
     TtsHorizontalDirection horizontalDirection;
