@@ -219,4 +219,6 @@ typedef struct {
     TtsTetraminoType grid[TTS_ROW_COUNT][TTS_COLUMN_COUNT];
     TtsRotationType playerRotationType;
     TtsHorizontalDirection horizontalDirection;
+	uint32_t score;
+	uint32_t clearedLines;
 } TtsTetris;

@@ -661,6 +661,24 @@ static void ttsMoveVertically(TtsTetris *tetris) {
         }
         TTS_ASSERT(clearedRowsCount <= TTS_ARRAYCOUNT(clearedRows));
 
+        uint32_t scoreIncrement = 0;
+        switch (clearedRowsCount) {
+            case 1: {
+                scoreIncrement = 100;
+            } break;
+            case 2: {
+                scoreIncrement = 300;
+            } break;
+            case 3: {
+                scoreIncrement = 500;
+            } break;
+            case 4: {
+                scoreIncrement = 800;
+            } break;
+        }
+        tetris->score += scoreIncrement;
+        tetris->clearedLines += clearedRowsCount;
+
         for (int32_t rowIndex = 0; rowIndex < clearedRowsCount; rowIndex++) {
             int32_t clearedRow = clearedRows[rowIndex];
             for (int32_t y = clearedRow - 1; y >= 0; y--) {
@@ -735,6 +753,39 @@ static float ttsGetStringWidthInPixels(TtsAtlas font, TtsString string) {
             result += glyph.advanceWidthInPixels;
         }
     }
+
+    return result;
+}
+
+static TtsString ttsFormatNumber(uint32_t number, char *dest, uint32_t destSize) {
+    TtsString result = {0};
+
+    if (number == 0) {
+        dest[destSize - 1] = '0';
+        result.size = 1;
+        result.text = dest + destSize - 1;
+    } else {
+        uint32_t remaining = number;
+        uint32_t charIndex = destSize - 1;
+
+        while (charIndex >= 0 && remaining > 0) {
+            dest[charIndex] = '0' + (remaining % 10);
+            remaining /= 10;
+
+            if (remaining > 0) {
+                charIndex--;
+            }
+        }
+
+        result.text = dest + charIndex;
+        result.size = destSize - charIndex;
+    }
+
+    return result;
+}
+
+static uint32_t ttsGetCurrentLevel(TtsTetris *tetris) {
+    uint32_t result = (tetris->clearedLines / 20) + 1;
 
     return result;
 }
@@ -962,6 +1013,8 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
             TtsColor boxColor = ttsMakeColor(223.0f, 240.0f, 216.0f, 255.0f);
             TtsColor fontColor = ttsMakeColor(0.0f, 0.0f, 0.0f, 255.0f);
 
+            char buffer[256] = {0};
+
             {
                 ttsDrawCellLikeQuad(
                     tetris,
@@ -982,7 +1035,7 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
 
                 ttsDrawString(
                     tetris,
-                    TTS_MAKE_STRING("00023"),
+                    ttsFormatNumber(tetris->clearedLines, buffer, TTS_ARRAYCOUNT(buffer)),
                     leftLabelX,
                     upperBoxY + tetris->atlas.lineHeightInPixels,
                     1.0f,
@@ -1050,9 +1103,10 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
                     fontColor
                 );
 
+                uint32_t level = ttsGetCurrentLevel(tetris);
                 ttsDrawString(
                     tetris,
-                    TTS_MAKE_STRING("12"),
+                    ttsFormatNumber(level, buffer, TTS_ARRAYCOUNT(buffer)),
                     leftLabelX,
                     lowerBoxY + tetris->atlas.lineHeightInPixels,
                     1.0f,
@@ -1080,7 +1134,7 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
 
                 ttsDrawString(
                     tetris,
-                    TTS_MAKE_STRING("0.000.000.350"),
+                    ttsFormatNumber(tetris->score, buffer, TTS_ARRAYCOUNT(buffer)),
                     rightLabelX,
                     lowerBoxY + tetris->atlas.lineHeightInPixels,
                     1.0f,
