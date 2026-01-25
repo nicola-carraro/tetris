@@ -221,4 +221,5 @@ typedef struct {
     TtsHorizontalDirection horizontalDirection;
 	uint32_t score;
 	uint32_t clearedLines;
+	uint32_t seed;
 } TtsTetris;

@@ -213,6 +213,11 @@ int WinMain(
         bool hasSound = xaudio2Init(&win32);
         TtsTetris tetris = ttsInit(&win32, hasSound);
 
+        FILETIME systemTime = {0};
+        GetSystemTimePreciseAsFileTime(&systemTime);
+
+        tetris.seed = systemTime.dwLowDateTime;
+
         if (win32.window && d3d11Init(&tetris)) {
             SetWindowLongPtrA(win32.window, GWLP_USERDATA, (LONG_PTR) &tetris);
             ShowWindow(win32.window, SW_MAXIMIZE);

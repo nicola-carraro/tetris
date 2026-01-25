@@ -8,6 +8,12 @@ static int32_t ttsRoundF32ToI32(float f) {
     return result;
 }
 
+static uint32_t ttsGetRandomNumber(TtsTetris *tetris) {
+    uint32_t result = (tetris->seed * 69069) + 1;
+    tetris->seed = result;
+    return result;
+}
+
 static TtsString ttsMakeString (char *text, uint64_t size) {
     TtsString result = {0};
 
@@ -484,12 +490,9 @@ void ttsRotatePlayer(TtsTetris *tetris, int32_t rotation) {
     }
 }
 
-static TtsTetraminoType getNextType(TtsTetraminoType type) {
-    TtsTetraminoType result = type + 1;
-
-    if (result >= TtsTetraminoType_Count) {
-        result = TtsTetraminoType_None + 1;
-    }
+static TtsTetraminoType getNextType(TtsTetris *tetris) {
+    uint32_t random = ttsGetRandomNumber(tetris);
+    TtsTetraminoType result = (TtsTetraminoType)((random % (TtsTetraminoType_Count - 1)) + 1);
 
     return result;
 }
@@ -610,11 +613,11 @@ static float ttsGetSpawnY(TtsTetraminoType type) {
 
 static void spawnTetramino(TtsTetris *tetris) {
     if (tetris->nextPlayerType == TtsTetraminoType_None) {
-        tetris->nextPlayerType = getNextType(tetris->playerType);
+        tetris->nextPlayerType = getNextType(tetris);
     }
 
     tetris->playerType = tetris->nextPlayerType;
-    tetris->nextPlayerType = getNextType(tetris->playerType);
+    tetris->nextPlayerType = getNextType(tetris);
     tetris->playerXInCells = ttsGetSpawnX(tetris->playerType);
     tetris->playerYInCells = ttsGetSpawnY(tetris->playerType);
     tetris->playerRotationType = TtsRotationType_None + 1;
