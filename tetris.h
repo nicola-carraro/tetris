@@ -177,7 +177,7 @@ typedef struct {
 } TtsI32Coords;
 
 typedef struct {
-    TtsFloatCoords cells[4];
+    TtsFloatCoords cellCenters[4];
 } TtsTetraminoPattern;
 
 typedef struct {
