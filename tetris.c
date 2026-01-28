@@ -117,17 +117,26 @@ static TtsTetris ttsInit(TtsPlatform *platform, bool hasSound) {
     musicFile = platformReadEntireFile("../data/tetris.wav");
     ok = musicFile.size > 0;
 
-    result.backgroundColor = ttsMakeColor(34.0f, 67.0f, 74.0f, 255.0f);
-
-    TtsReadResult soundFile = {0};
-    if (ok) {
-        soundFile = platformReadEntireFile("../data/sound.wav");
-        ok = musicFile.size > 0;
-    }
-
     if (ok) {
         result.music = ttsWavParseFile(musicFile);
-        result.sound = ttsWavParseFile(soundFile);
+    }
+
+    result.backgroundColor = ttsMakeColor(34.0f, 67.0f, 74.0f, 255.0f);
+
+    char paths[TtsSoundEffect_Count][256] = {
+        [TtsSoundEffect_Whoosh] = "../data/whoosh.wav",
+        [TtsSoundEffect_Click] = "../data/click.wav",
+    };
+
+    for (TtsSoundEffect effect = TtsSoundEffect_None + 1; effect < TtsSoundEffect_Count; effect++) {
+        TtsReadResult soundFile = {0};
+        char *path = paths[effect];
+        soundFile = platformReadEntireFile(path);
+        ok = soundFile.size > 0;
+
+        if (ok) {
+            result.soundEffects[effect] = ttsWavParseFile(soundFile);
+        }
     }
 
     return result;
@@ -616,6 +625,10 @@ static void ttsMoveVertically(TtsTetris *tetris) {
         }
         TTS_ASSERT(clearedRowsCount <= TTS_ARRAYCOUNT(clearedRows));
 
+        if (clearedRowsCount > 0) {
+            platformPlaySound(tetris, tetris->soundEffects[TtsSoundEffect_Whoosh]);
+        }
+
         uint32_t scoreIncrement = 0;
         switch (clearedRowsCount) {
             case 1: {
@@ -740,7 +753,7 @@ static TtsString ttsFormatNumber(uint32_t number, char *dest, uint32_t destSize)
 }
 
 static uint32_t ttsGetCurrentLevel(TtsTetris *tetris) {
-    uint32_t result = (tetris->clearedLines / 20) + 1;
+    uint32_t result = (tetris->clearedLines / 10) + 1;
 
     return result;
 }
@@ -893,6 +906,7 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
             }
 
             if (ttsPressCount(tetris->controls[TtsControlType_Space]) > 0) {
+                platformPlaySound(tetris, tetris->soundEffects[TtsSoundEffect_Click]);
                 tetris->playerYProgression = (float)(TTS_ROW_COUNT + 4);
             }
         }

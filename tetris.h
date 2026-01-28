@@ -194,6 +194,15 @@ typedef struct {
 	float height;
 } TtsPatternFeatures;
 
+typedef enum {
+	TtsSoundEffect_None,
+	
+	TtsSoundEffect_Whoosh,
+	TtsSoundEffect_Click,
+	
+	TtsSoundEffect_Count,
+} TtsSoundEffect;
+
 typedef struct {
     TtsPlatform *platform;
     TtsAtlas atlas;
@@ -203,7 +212,7 @@ typedef struct {
     bool wasResizing;
     bool hasSound;
     Wav music;
-    Wav sound;
+    Wav soundEffects[TtsSoundEffect_Count];
     uint64_t frame;
     TtsControl controls[TtsControlType_Count];
     int32_t mouseX;

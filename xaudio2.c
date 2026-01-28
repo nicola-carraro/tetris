@@ -18,18 +18,18 @@ void xaudio2WavPlay(TtsTetris *tetris, IXAudio2SourceVoice **sourceVoice, Wav wa
             audioBuffer.pContext = 0;
         }
 
-        WAVEFORMATEX musicWaveFormat = {0};
+        WAVEFORMATEX waveFormat = {0};
         {
-            musicWaveFormat.wFormatTag = wav.fmtChunk->formatTag;
-            musicWaveFormat.nChannels = wav.fmtChunk->channels;
-            musicWaveFormat.nSamplesPerSec = wav.fmtChunk->samplesPerSec;
-            musicWaveFormat.nAvgBytesPerSec = wav.fmtChunk->avgBytesPerSec;
-            musicWaveFormat.nBlockAlign = wav.fmtChunk->blockAlign;
-            musicWaveFormat.wBitsPerSample = wav.fmtChunk->bitsPerSample;
-            musicWaveFormat.cbSize = wav.fmtChunk->extensionSize;
+            waveFormat.wFormatTag = wav.fmtChunk->formatTag;
+            waveFormat.nChannels = wav.fmtChunk->channels;
+            waveFormat.nSamplesPerSec = wav.fmtChunk->samplesPerSec;
+            waveFormat.nAvgBytesPerSec = wav.fmtChunk->avgBytesPerSec;
+            waveFormat.nBlockAlign = wav.fmtChunk->blockAlign;
+            waveFormat.wBitsPerSample = wav.fmtChunk->bitsPerSample;
+            waveFormat.cbSize = wav.fmtChunk->extensionSize;
         }
 
-        HRESULT hr = IXAudio2_CreateSourceVoice(xaudio, sourceVoice, &musicWaveFormat, 0, 1.0, 0, 0, 0);
+        HRESULT hr = IXAudio2_CreateSourceVoice(xaudio, sourceVoice, &waveFormat, 0, 1.0, 0, 0, 0);
 
         if (SUCCEEDED(hr)) {
             IXAudio2SourceVoice_SubmitSourceBuffer(
