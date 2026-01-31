@@ -404,7 +404,7 @@ static bool ttsIsCellAvailable(TtsTetris *tetris, int32_t x, int32_t y) {
         if (y < 0) {
             result = true;
         } else if (y < TTS_ARRAYCOUNT(tetris->grid)) {
-            result = tetris->grid[y][x] == TtsTetraminoType_None;
+            result = tetris->grid[y][x].tetraminoType == TtsTetraminoType_None;
         }
     }
 
@@ -515,7 +515,12 @@ static bool ttsIsRowEmpty(TtsTetris *tetris, int32_t row) {
 }
 static void ttsClearRow(TtsTetris *tetris, int32_t y) {
     for (int32_t x = 0; x < TTS_COLUMN_COUNT; x++) {
-        tetris->grid[y][x] = TtsTetraminoType_None;
+        TtsTetraminoType tetraminoType = tetris->grid[y][x].tetraminoType;
+        if (tetraminoType) {
+            tetris->grid[y][x].fadingTetraminoType = tetraminoType;
+            tetris->grid[y][x].tetraminoType = TtsTetraminoType_None;
+            tetris->grid[y][x].secondsToFadeEnd = TTS_FADE_SECONDS;
+        }
     }
 }
 
@@ -609,7 +614,7 @@ static void ttsMoveVertically(TtsTetris *tetris) {
                 cell.y >= 0 && cell.y < TTS_ARRAYCOUNT(tetris->grid)
                 && cell.x >= 0 && cell.x < TTS_ARRAYCOUNT(tetris->grid[0])
             ){
-                tetris->grid[cell.y][cell.x] = tetris->playerType;
+                tetris->grid[cell.y][cell.x].tetraminoType = tetris->playerType;
             }
         }
 
@@ -652,7 +657,7 @@ static void ttsMoveVertically(TtsTetris *tetris) {
             int32_t clearedRow = clearedRows[rowIndex];
             for (int32_t y = clearedRow - 1; y >= 0; y--) {
                 for (int32_t x = 0; x < TTS_COLUMN_COUNT; x++) {
-                    tetris->grid[y + 1][x] = tetris->grid[y][x];
+                    tetris->grid[y + 1][x].tetraminoType = tetris->grid[y][x].tetraminoType;
                 }
             }
         }
@@ -957,8 +962,10 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
     {
         for (int32_t rowIndex = 0; rowIndex < TTS_ARRAYCOUNT(tetris->grid); rowIndex++) {
             for (int32_t columnIndex = 0; columnIndex < TTS_ARRAYCOUNT(tetris->grid[0]); columnIndex++) {
+                TtsGridCell *cell = &(tetris->grid[rowIndex][columnIndex]);
+
                 if (!ttsIsCellAvailable(tetris, columnIndex, rowIndex)) {
-                    TtsColor color = ttsGetTetraminoColor(tetris->grid[rowIndex][columnIndex]);
+                    TtsColor color = ttsGetTetraminoColor(cell->tetraminoType);
 
                     ttsDrawCell(
                         tetris,
@@ -969,6 +976,22 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
                         gridX,
                         gridY
                     );
+                } else if (tetris->grid[rowIndex][columnIndex].secondsToFadeEnd > 0.0f){
+                    TtsColor color = ttsGetTetraminoColor(cell->fadingTetraminoType);
+                    float alphaRatio = 1.0f - (cell->secondsToFadeEnd / TTS_FADE_SECONDS);
+                    float alpha = 255 - (alphaRatio * 255.0f);
+
+                    ttsDrawCell(
+                        tetris,
+                        rowIndex,
+                        columnIndex,
+                        ttsMakeColor(color.r, color.g, color.b, alpha),
+                        cellSideInPixels,
+                        gridX,
+                        gridY
+                    );
+
+                    tetris->grid[rowIndex][columnIndex].secondsToFadeEnd -= secondsElapsed;
                 }
             }
         }

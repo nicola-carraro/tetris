@@ -16,6 +16,7 @@
 #define TTS_MAX_HEIGTH_RATIO 0.8f
 #define TTS_MAX(a, b) ((a) > (b) ? (a) : (b))
 #define TTS_MIN(a, b) ((a) < (b) ? (a) : (b))
+#define TTS_FADE_SECONDS 1.5f
 
 typedef struct TtsPlatform TtsPlatform;
 
@@ -204,6 +205,12 @@ typedef enum {
 } TtsSoundEffect;
 
 typedef struct {
+	TtsTetraminoType tetraminoType;
+	TtsTetraminoType fadingTetraminoType;
+	float secondsToFadeEnd;
+} TtsGridCell;
+
+typedef struct {
     TtsPlatform *platform;
     TtsAtlas atlas;
     uint32_t windowWidth;
@@ -225,7 +232,7 @@ typedef struct {
     bool paused;
     TtsTetraminoType playerType;
     TtsTetraminoType nextPlayerType;
-    TtsTetraminoType grid[TTS_ROW_COUNT][TTS_COLUMN_COUNT];
+    TtsGridCell grid[TTS_ROW_COUNT][TTS_COLUMN_COUNT];
     TtsRotationType playerRotationType;
     TtsHorizontalDirection horizontalDirection;
     uint32_t score;
