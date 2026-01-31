@@ -515,7 +515,10 @@ static bool ttsIsRowEmpty(TtsTetris *tetris, int32_t row) {
 }
 static void ttsClearRow(TtsTetris *tetris, int32_t y) {
     for (int32_t x = 0; x < TTS_COLUMN_COUNT; x++) {
-        tetris->grid[y][x] = TtsTetraminoType_None;
+        TtsTetraminoType tetraminoType = tetris->grid[y][x];
+        if (tetraminoType) {
+            tetris->grid[y][x] = TtsTetraminoType_None;
+        }
     }
 }
 
@@ -613,25 +616,17 @@ static void ttsMoveVertically(TtsTetris *tetris) {
             }
         }
 
-        int32_t clearedRows[4] = {0};
-        int32_t clearedRowsCount = 0;
-
         for (int32_t y = minY; y <= maxY; y++) {
             if (y >= 0) {
                 if (ttsIsRowFull(tetris, y)) {
-                    ttsClearRow(tetris, y);
-                    clearedRows[clearedRowsCount++] = y;
+                    tetris->clearedRows[tetris->clearedRowsCount++] = y;
                 }
             }
         }
-        TTS_ASSERT(clearedRowsCount <= TTS_ARRAYCOUNT(clearedRows));
-
-        if (clearedRowsCount > 0) {
-            platformPlaySound(tetris, tetris->soundEffects[TtsSoundEffect_Whoosh]);
-        }
+        TTS_ASSERT(tetris->clearedRowsCount <= TTS_ARRAYCOUNT(tetris->clearedRows));
 
         uint32_t scoreIncrement = 0;
-        switch (clearedRowsCount) {
+        switch (tetris->clearedRowsCount) {
             case 1: {
                 scoreIncrement = 100;
             } break;
@@ -645,21 +640,14 @@ static void ttsMoveVertically(TtsTetris *tetris) {
                 scoreIncrement = 800;
             } break;
         }
+
+        if (tetris->clearedRowsCount > 0) {
+            tetris->secondsToFadeEnd = TTS_FADE_SECONDS;
+            platformPlaySound(tetris, tetris->soundEffects[TtsSoundEffect_Whoosh]);
+        }
+
         tetris->score += scoreIncrement;
-        tetris->clearedLines += clearedRowsCount;
-
-        for (int32_t rowIndex = 0; rowIndex < clearedRowsCount; rowIndex++) {
-            int32_t clearedRow = clearedRows[rowIndex];
-            for (int32_t y = clearedRow - 1; y >= 0; y--) {
-                for (int32_t x = 0; x < TTS_COLUMN_COUNT; x++) {
-                    tetris->grid[y + 1][x] = tetris->grid[y][x];
-                }
-            }
-        }
-
-        if (clearedRowsCount > 0) {
-            ttsClearRow(tetris, 0);
-        }
+        tetris->clearedLines += tetris->clearedRowsCount;
 
         spawnTetramino(tetris);
     }
@@ -757,6 +745,10 @@ static uint32_t ttsGetCurrentLevel(TtsTetris *tetris) {
     uint32_t result = (tetris->clearedLines / 10) + 1;
 
     return result;
+}
+
+static bool ttsIsFading(TtsTetris *tetris) {
+    return tetris->secondsToFadeEnd > 0.0f;
 }
 
 static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
@@ -867,11 +859,11 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
         if (tetris->isHardDropping) {
             verticalVelocity = 200.0f;
         } else if (tetris->controls[TtsControlType_Down].wasDown) {
-            verticalVelocity *= 3.0f;
+            verticalVelocity *= 10.0f;
         }
         float horizontalVelocity = 3.0f;
 
-        if (!tetris->wasResizing && !tetris->paused) {
+        if (!tetris->wasResizing && !tetris->paused && !ttsIsFading(tetris)) {
             tetris->playerYProgression += verticalVelocity * secondsElapsed;
 
             bool leftPressed = tetris->controls[TtsControlType_Left].wasDown;
@@ -953,12 +945,48 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
         }
     }
 
+    if (tetris->clearedRowsCount > 0 && tetris->secondsToFadeEnd <= 0.0f){
+        for (int32_t rowIndex = 0; rowIndex < tetris->clearedRowsCount; rowIndex++) {
+            int32_t clearedRow = tetris->clearedRows[rowIndex];
+            ttsClearRow(tetris, clearedRow);
+            for (int32_t y = clearedRow - 1; y >= 0; y--) {
+                for (int32_t x = 0; x < TTS_COLUMN_COUNT; x++) {
+                    tetris->grid[y + 1][x] = tetris->grid[y][x];
+                }
+            }
+        }
+
+        ttsClearRow(tetris, 0);
+
+        tetris->clearedRowsCount = 0;
+
+        platformPlaySound(tetris, tetris->soundEffects[TtsSoundEffect_Click]);
+    }
+
     // Grid
     {
         for (int32_t rowIndex = 0; rowIndex < TTS_ARRAYCOUNT(tetris->grid); rowIndex++) {
+            bool isClearedRow = false;
+
+            for (int32_t clearedRowIndex = 0; clearedRowIndex < tetris->clearedRowsCount; clearedRowIndex++) {
+                if (tetris->clearedRows[clearedRowIndex] == rowIndex) {
+                    isClearedRow = true;
+                    break;
+                }
+            }
+
             for (int32_t columnIndex = 0; columnIndex < TTS_ARRAYCOUNT(tetris->grid[0]); columnIndex++) {
+                TtsTetraminoType cell = tetris->grid[rowIndex][columnIndex];
+
                 if (!ttsIsCellAvailable(tetris, columnIndex, rowIndex)) {
-                    TtsColor color = ttsGetTetraminoColor(tetris->grid[rowIndex][columnIndex]);
+                    TtsColor color = ttsGetTetraminoColor(cell);
+
+                    if (isClearedRow) {
+                        float fadeRatio = 1.0f - (tetris->secondsToFadeEnd / TTS_FADE_SECONDS);
+                        float alphaRatio = fadeRatio * fadeRatio * fadeRatio;
+                        float alpha = 255 - (alphaRatio * 255.0f);
+                        color.a = alpha;
+                    }
 
                     ttsDrawCell(
                         tetris,
@@ -972,6 +1000,12 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
                 }
             }
         }
+    }
+
+    if (ttsIsFading(tetris)) {
+        tetris->secondsToFadeEnd -= secondsElapsed;
+    } else {
+        tetris->secondsToFadeEnd = 0.0f;
     }
 
     {

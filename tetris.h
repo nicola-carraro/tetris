@@ -16,6 +16,7 @@
 #define TTS_MAX_HEIGTH_RATIO 0.8f
 #define TTS_MAX(a, b) ((a) > (b) ? (a) : (b))
 #define TTS_MIN(a, b) ((a) < (b) ? (a) : (b))
+#define TTS_FADE_SECONDS 0.5f
 
 typedef struct TtsPlatform TtsPlatform;
 
@@ -203,6 +204,7 @@ typedef enum {
     TtsSoundEffect_Count,
 } TtsSoundEffect;
 
+
 typedef struct {
     TtsPlatform *platform;
     TtsAtlas atlas;
@@ -232,4 +234,7 @@ typedef struct {
     uint32_t clearedLines;
     uint32_t seed;
     bool isHardDropping;
+	float secondsToFadeEnd;
+	int32_t clearedRows[4];
+    int32_t clearedRowsCount;
 } TtsTetris;
