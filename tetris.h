@@ -20,10 +20,10 @@
 typedef struct TtsPlatform TtsPlatform;
 
 typedef struct {
-	float r;
-	float g;
-	float b;
-	float a;
+    float r;
+    float g;
+    float b;
+    float a;
 } TtsColor;
 
 typedef struct {
@@ -56,7 +56,7 @@ typedef struct {
 } TtsReadResult;
 
 typedef struct {
-	bool wasDown;
+    bool wasDown;
     bool endedDown;
     uint32_t transitions;
 } TtsControl;
@@ -71,7 +71,7 @@ typedef enum {
     TtsControlType_Esc,
     TtsControlType_Space,
     TtsControlType_Enter,
-	TtsControlType_C,
+    TtsControlType_C,
     TtsControlType_P,
     TtsControlType_MouseLeft,
     TtsControlType_MouseRight,
@@ -185,22 +185,22 @@ typedef struct {
 } TtsTetramino;
 
 typedef struct {
-	TtsFloatCoords esteticCenter;
-	float minX;
-	float minY;
-	float maxX;
-	float maxY;
-	float width;
-	float height;
+    TtsFloatCoords esteticCenter;
+    float minX;
+    float minY;
+    float maxX;
+    float maxY;
+    float width;
+    float height;
 } TtsPatternFeatures;
 
 typedef enum {
-	TtsSoundEffect_None,
-	
-	TtsSoundEffect_Whoosh,
-	TtsSoundEffect_Click,
-	
-	TtsSoundEffect_Count,
+    TtsSoundEffect_None,
+
+    TtsSoundEffect_Whoosh,
+    TtsSoundEffect_Click,
+
+    TtsSoundEffect_Count,
 } TtsSoundEffect;
 
 typedef struct {
@@ -224,11 +224,12 @@ typedef struct {
     float playerYProgression;
     bool paused;
     TtsTetraminoType playerType;
-	TtsTetraminoType nextPlayerType;
+    TtsTetraminoType nextPlayerType;
     TtsTetraminoType grid[TTS_ROW_COUNT][TTS_COLUMN_COUNT];
     TtsRotationType playerRotationType;
     TtsHorizontalDirection horizontalDirection;
-	uint32_t score;
-	uint32_t clearedLines;
-	uint32_t seed;
+    uint32_t score;
+    uint32_t clearedLines;
+    uint32_t seed;
+    bool isHardDropping;
 } TtsTetris;

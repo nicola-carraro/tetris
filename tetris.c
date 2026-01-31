@@ -585,6 +585,7 @@ static void spawnTetramino(TtsTetris *tetris) {
     tetris->horizontalDirection = TtsHorizontalDirection_None;
     tetris->playerXProgression = 0.0f;
     tetris->playerYProgression = 0.0f;
+    tetris->isHardDropping = false;
 }
 
 static void ttsMoveVertically(TtsTetris *tetris) {
@@ -857,7 +858,15 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
     // Player
     {
         float verticalVelocity = 3.0f;
-        if (tetris->controls[TtsControlType_Down].wasDown) {
+
+        if (ttsPressCount(tetris->controls[TtsControlType_Space]) > 0) {
+            tetris->isHardDropping = true;
+            platformPlaySound(tetris, tetris->soundEffects[TtsSoundEffect_Click]);
+        }
+
+        if (tetris->isHardDropping) {
+            verticalVelocity = 200.0f;
+        } else if (tetris->controls[TtsControlType_Down].wasDown) {
             verticalVelocity *= 3.0f;
         }
         float horizontalVelocity = 3.0f;
@@ -870,13 +879,15 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
 
             TtsHorizontalDirection previousDirection = TtsHorizontalDirection_None;
 
-            if (leftPressed && !rightPressed) {
-                tetris->horizontalDirection = TtsHorizontalDirection_Left;
-            } else if (rightPressed && !leftPressed) {
-                tetris->horizontalDirection = TtsHorizontalDirection_Right;
-            } else {
-                tetris->horizontalDirection = TtsHorizontalDirection_None;
-                tetris->playerXProgression = 0.0f;
+            if (!tetris->isHardDropping) {
+                if (leftPressed && !rightPressed) {
+                    tetris->horizontalDirection = TtsHorizontalDirection_Left;
+                } else if (rightPressed && !leftPressed) {
+                    tetris->horizontalDirection = TtsHorizontalDirection_Right;
+                } else {
+                    tetris->horizontalDirection = TtsHorizontalDirection_None;
+                    tetris->playerXProgression = 0.0f;
+                }
             }
 
             if (tetris->horizontalDirection != previousDirection) {
@@ -903,11 +914,6 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
 
             for (uint32_t rotationIndex = 0; rotationIndex < ttsPressCount(tetris->controls[TtsControlType_Up]); rotationIndex++) {
                 ttsRotatePlayer(tetris, +1);
-            }
-
-            if (ttsPressCount(tetris->controls[TtsControlType_Space]) > 0) {
-                platformPlaySound(tetris, tetris->soundEffects[TtsSoundEffect_Click]);
-                tetris->playerYProgression = (float)(TTS_ROW_COUNT + 4);
             }
         }
 
