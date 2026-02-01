@@ -751,6 +751,10 @@ static bool ttsIsFading(TtsTetris *tetris) {
     return tetris->secondsToFadeEnd > 0.0f;
 }
 
+static bool ttsIsFalling(TtsTetris *tetris) {
+    return tetris->clearedRowsCount > 0 && !ttsIsFading(tetris);
+}
+
 static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
     if (tetris->frame == 0) {
         platformPlayMusic(tetris, tetris->music);
@@ -863,7 +867,7 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
         }
         float horizontalVelocity = 3.0f;
 
-        if (!tetris->wasResizing && !tetris->paused && !ttsIsFading(tetris)) {
+        if (!tetris->wasResizing && !tetris->paused && tetris->clearedRowsCount == 0) {
             tetris->playerYProgression += verticalVelocity * secondsElapsed;
 
             bool leftPressed = tetris->controls[TtsControlType_Left].wasDown;
@@ -945,22 +949,43 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
         }
     }
 
-    if (tetris->clearedRowsCount > 0 && tetris->secondsToFadeEnd <= 0.0f){
+    bool wasFading = ttsIsFading(tetris);
+    if (ttsIsFading(tetris)) {
+        tetris->secondsToFadeEnd -= secondsElapsed;
+    } else {
+        tetris->secondsToFadeEnd = 0.0f;
+    }
+    bool isFading = ttsIsFading(tetris);
+
+    if (wasFading && !isFading) {
         for (int32_t rowIndex = 0; rowIndex < tetris->clearedRowsCount; rowIndex++) {
             int32_t clearedRow = tetris->clearedRows[rowIndex];
             ttsClearRow(tetris, clearedRow);
+        }
+        platformPlaySound(tetris, tetris->soundEffects[TtsSoundEffect_Click]);
+    }
+
+    if (ttsIsFalling(tetris)){
+        float fallingVelocity = 20.0f;
+        tetris->fallingYProgression += (fallingVelocity * secondsElapsed);
+
+        while (tetris->fallingYProgression >= 1.0f && tetris->clearedRowsCount > 0) {
+            int32_t clearedRow = tetris->clearedRows[tetris->clearedRowsCount - 1];
+
             for (int32_t y = clearedRow - 1; y >= 0; y--) {
                 for (int32_t x = 0; x < TTS_COLUMN_COUNT; x++) {
                     tetris->grid[y + 1][x] = tetris->grid[y][x];
                 }
             }
+
+            ttsClearRow(tetris, 0);
+
+            tetris->clearedRowsCount--;
+            for (int32_t rowIndex = 0; rowIndex < tetris->clearedRowsCount; rowIndex++) {
+                tetris->clearedRows[rowIndex]++;
+            }
+            tetris->fallingYProgression -= 1.0f;
         }
-
-        ttsClearRow(tetris, 0);
-
-        tetris->clearedRowsCount = 0;
-
-        platformPlaySound(tetris, tetris->soundEffects[TtsSoundEffect_Click]);
     }
 
     // Grid
@@ -981,7 +1006,7 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
                 if (!ttsIsCellAvailable(tetris, columnIndex, rowIndex)) {
                     TtsColor color = ttsGetTetraminoColor(cell);
 
-                    if (isClearedRow) {
+                    if (isClearedRow && ttsIsFading(tetris)) {
                         float fadeRatio = 1.0f - (tetris->secondsToFadeEnd / TTS_FADE_SECONDS);
                         float alphaRatio = fadeRatio * fadeRatio * fadeRatio;
                         float alpha = 255 - (alphaRatio * 255.0f);
@@ -1000,12 +1025,6 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
                 }
             }
         }
-    }
-
-    if (ttsIsFading(tetris)) {
-        tetris->secondsToFadeEnd -= secondsElapsed;
-    } else {
-        tetris->secondsToFadeEnd = 0.0f;
     }
 
     {

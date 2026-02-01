@@ -224,6 +224,7 @@ typedef struct {
     float playerYInCells;
     float playerXProgression;
     float playerYProgression;
+	float fallingYProgression;
     bool paused;
     TtsTetraminoType playerType;
     TtsTetraminoType nextPlayerType;
