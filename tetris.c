@@ -26,8 +26,8 @@ static void ttsDrawGlyph(
     float scale,
     TtsColor color
 ) {
-    float quadX = x + glyph.xOffsetInPixels;
-    float quadY = y + glyph.yOffsetInPixels;
+    float quadX = x + glyph.xOffsetInPixels * scale;
+    float quadY = y + glyph.yOffsetInPixels * scale;
     float quadWidth = glyph.bitmapWidthInPixels * scale;
     float quadHeight = glyph.bitmapHeightInPixels * scale;
     platformDrawTextureQuad(
@@ -180,6 +180,50 @@ TtsColor ttsGetTetraminoColor(TtsTetraminoType tetraminoType) {
     return result;
 }
 
+TtsString ttsGetButtonLabel(TtsButtonType buttonType, bool isOn) {
+    TTS_ASSERT(buttonType > TtsButtonType_None);
+    TTS_ASSERT(buttonType < TtsButtonType_Count);
+
+    TtsString result = {0};
+
+    switch (buttonType) {
+        case TtsButtonType_New: {
+            result = TTS_MAKE_STRING("New");
+        } break;
+        case TtsButtonType_Resume: {
+            result = TTS_MAKE_STRING("Resume");
+        } break;
+        case TtsButtonType_Sound: {
+            result = isOn ? TTS_MAKE_STRING("Sound off") : TTS_MAKE_STRING("Sound on");
+        } break;
+        case TtsButtonType_Music: {
+            result = isOn ? TTS_MAKE_STRING("Music off") : TTS_MAKE_STRING("Music on");
+        } break;
+        case TtsButtonType_Quit: {
+            result =  TTS_MAKE_STRING("Quit");
+        } break;
+    }
+
+    return result;
+}
+
+TtsTetraminoType ttsGetButtonTetraminoType (TtsButtonType buttonType) {
+    TTS_ASSERT(buttonType > TtsButtonType_None);
+    TTS_ASSERT(buttonType < TtsButtonType_Count);
+
+    TtsTetraminoType types[TtsButtonType_Count] = {
+        [TtsButtonType_New] = TtsTetraminoType_I,
+        [TtsButtonType_Resume] = TtsTetraminoType_O,
+        [TtsButtonType_Sound] = TtsTetraminoType_L,
+        [TtsButtonType_Music] = TtsTetraminoType_S,
+        [TtsButtonType_Quit] = TtsTetraminoType_Z,
+    };
+
+    TtsTetraminoType result = types[buttonType];
+
+    return result;
+}
+
 static void ttsDrawColorTrapezoid(
     float x0, float y0,
     float x1, float y1,
@@ -323,6 +367,18 @@ static uint32_t ttsPressCount(TtsControl control) {
     uint32_t transitions = control.transitions;
 
     if (control.endedDown) {
+        transitions++;
+    }
+
+    uint32_t result = transitions / 2;
+
+    return result;
+}
+
+static uint32_t ttsReleaseCount(TtsControl control) {
+    uint32_t transitions = control.transitions;
+
+    if (!control.endedDown) {
         transitions++;
     }
 
@@ -755,14 +811,22 @@ static bool ttsIsFalling(TtsTetris *tetris) {
     return tetris->clearedRowsCount > 0 && !ttsIsFading(tetris);
 }
 
+static bool shouldUpdate(TtsTetris *tetris) {
+    return !tetris->wasResizing && !tetris->menuOpen && !tetris->paused && tetris->clearedRowsCount == 0;
+}
+
 static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
     if (tetris->frame == 0) {
         platformPlayMusic(tetris, tetris->music);
         spawnTetramino(tetris);
     }
 
-    if (ttsPressCount(tetris->controls[TtsControlType_P]) % 2 != 0) {
+    if (!tetris->menuOpen && ttsPressCount(tetris->controls[TtsControlType_P]) % 2 != 0) {
         tetris->paused = !tetris->paused;
+    }
+
+    if (ttsPressCount(tetris->controls[TtsControlType_Esc]) % 2 != 0) {
+        tetris->menuOpen = !tetris->menuOpen;
     }
 
     int32_t boardWidthInColumns = TTS_COLUMN_COUNT + 2;
@@ -867,7 +931,7 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
         }
         float horizontalVelocity = 3.0f;
 
-        if (!tetris->wasResizing && !tetris->paused && tetris->clearedRowsCount == 0) {
+        if (shouldUpdate(tetris)) {
             tetris->playerYProgression += verticalVelocity * secondsElapsed;
 
             bool leftPressed = tetris->controls[TtsControlType_Left].wasDown;
@@ -1027,6 +1091,9 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
         }
     }
 
+    TtsColor boxColor = ttsMakeColor(223.0f, 240.0f, 216.0f, 255.0f);
+    TtsColor fontColor = ttsMakeColor(0.0f, 0.0f, 0.0f, 255.0f);
+
     {
         if (drawLabels) {
             float rightBoxX = gridX + gridWidth + (gridMargin * 2.0f);
@@ -1035,9 +1102,6 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
             float leftLabelX = leftBoxX + gridMargin;
             float upperBoxY = gridY;
             float lowerBoxY = gridY + gridHeight - boxHeight;
-
-            TtsColor boxColor = ttsMakeColor(223.0f, 240.0f, 216.0f, 255.0f);
-            TtsColor fontColor = ttsMakeColor(0.0f, 0.0f, 0.0f, 255.0f);
 
             char buffer[256] = {0};
 
@@ -1172,6 +1236,104 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
                 (float) tetris->windowWidth, gridY - cellSideInPixels,
                 cellSideInPixels
             );
+        }
+    }
+
+    if (tetris->menuOpen) {
+        float menuWidth = gridWidth * 1.2f;
+        float menuLeft = (tetris->windowWidth - menuWidth) / 2.0f;
+        float menuHeight = gridHeight * 1.2f;
+        float menuTop = (tetris->windowHeight - menuHeight) / 2.0f;
+
+        ttsDrawCellLikeQuad(
+            tetris,
+            menuLeft, menuTop,
+            menuWidth, menuHeight,
+            5.0f,
+            boxColor
+        ) ;
+
+        float buttonWidth = menuWidth * 0.8f;
+        float buttonMargin = (menuWidth - buttonWidth) / 2.0f;
+        float buttonHeight = buttonWidth * 0.4f;
+
+        uint32_t buttonCount = TtsButtonType_Count - 1;
+        float buttonsGap = (menuHeight - (2.0f * buttonMargin) - ((float)buttonCount * buttonHeight)) / ((float) (buttonCount - 1));
+
+        float buttonLeft = menuLeft + buttonMargin;
+        float buttonTop = menuTop + buttonMargin;
+
+        bool mousePressed = ttsPressCount(tetris->controls[TtsControlType_MouseLeft]) > 0;
+        bool mouseRelased = ttsReleaseCount(tetris->controls[TtsControlType_MouseLeft]) > 0;
+
+        if (mouseRelased) {
+            tetris->pressedButton = TtsButtonType_None;
+        }
+
+        for (TtsButtonType buttonType = TtsButtonType_None + 1; buttonType < TtsButtonType_Count; buttonType++) {
+            TtsString label = ttsGetButtonLabel(buttonType, 1);
+            TtsTetraminoType tetraminoType = ttsGetButtonTetraminoType(buttonType);
+            TtsColor buttonColor = ttsGetTetraminoColor(tetraminoType);
+
+            float mouseX = (float) tetris->mouseX;
+            float mouseY = (float) tetris->mouseY;
+            float buttonRight =  buttonLeft + buttonWidth;
+            float buttonBottom = buttonTop + buttonHeight;
+
+            if (
+                mousePressed
+                && mouseX >=  buttonLeft && mouseX <= buttonRight
+                && mouseY >= buttonTop && mouseY <= buttonBottom
+            ) {
+                tetris->pressedButton = buttonType;
+            }
+
+            if (tetris->pressedButton == buttonType) {
+                float relaseThreshold = 5.0f;
+                if (
+                    mouseX <= buttonLeft - relaseThreshold || mouseX >= buttonRight + relaseThreshold
+                    || mouseY <= buttonTop - relaseThreshold || mouseY >= buttonBottom + relaseThreshold
+                ) {
+                    tetris->pressedButton = TtsButtonType_None;
+                }
+
+                ttsDrawCellLikeQuad(
+                    tetris,
+                    buttonLeft, buttonTop,
+                    buttonWidth, buttonHeight,
+                    3.0f,
+                    buttonColor
+                ) ;
+            } else {
+                ttsDrawCellLikeQuad(
+                    tetris,
+                    buttonLeft, buttonTop,
+                    buttonWidth, buttonHeight,
+                    5.0f,
+                    buttonColor
+                ) ;
+            }
+
+            float maxLineHeight = buttonHeight * 0.75f;
+
+            float fontScale = 1.0f;
+
+            float lineHeight = tetris->atlas.lineHeightInPixels;
+
+            if (maxLineHeight < tetris->atlas.lineHeightInPixels) {
+                fontScale = maxLineHeight / tetris->atlas.lineHeightInPixels;
+                lineHeight = maxLineHeight;
+            }
+
+            ttsDrawString(
+                tetris,
+                label,
+                buttonLeft + buttonMargin,
+                buttonTop + ((buttonHeight - lineHeight) / 2.0f),
+                fontScale,
+                fontColor
+            );
+            buttonTop += (buttonHeight + buttonsGap);
         }
     }
 

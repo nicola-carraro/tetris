@@ -204,6 +204,17 @@ typedef enum {
     TtsSoundEffect_Count,
 } TtsSoundEffect;
 
+typedef enum {
+	TtsButtonType_None,
+	
+	TtsButtonType_Resume,
+	TtsButtonType_New,
+	TtsButtonType_Sound,
+	TtsButtonType_Music,
+	TtsButtonType_Quit,
+	
+	TtsButtonType_Count,
+} TtsButtonType;
 
 typedef struct {
     TtsPlatform *platform;
@@ -213,6 +224,7 @@ typedef struct {
     bool isResizing;
     bool wasResizing;
     bool hasSound;
+	bool menuOpen;
     Wav music;
     Wav soundEffects[TtsSoundEffect_Count];
     uint64_t frame;
@@ -238,4 +250,7 @@ typedef struct {
 	float secondsToFadeEnd;
 	int32_t clearedRows[4];
     int32_t clearedRowsCount;
+	TtsButtonType pressedButton;
+	TtsButtonType hoveredButton;
+	
 } TtsTetris;
