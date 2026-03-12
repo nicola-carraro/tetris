@@ -64,54 +64,17 @@ LRESULT windowProc(
 
         case WM_KEYUP:
         case WM_KEYDOWN: {
-            TtsControlType controlType = TtsControlType_None;
-
-            switch (wParam) {
-                case VK_LEFT : {
-                    controlType = TtsControlType_Left;
-                } break;
-
-                case VK_RIGHT: {
-                    controlType = TtsControlType_Right;
-                } break;
-
-                case VK_UP: {
-                    controlType = TtsControlType_Up;
-                } break;
-
-                case VK_DOWN: {
-                    controlType = TtsControlType_Down;
-                } break;
-
-                case VK_ESCAPE: {
-                    controlType = TtsControlType_Esc;
-                } break;
-
-                case VK_SPACE: {
-                    controlType = TtsControlType_Space;
-                } break;
-
-                case VK_RETURN: {
-                    controlType = TtsControlType_Enter;
-                } break;
-
-                case 'C': {
-                    controlType = TtsControlType_C;
-                } break;
-
-                case 'P': {
-                    controlType = TtsControlType_P;
-                }
-            }
+            TtsControlType controlType = win32MapVirtualKeyToControl((int)wParam);
 
             if (controlType) {
                 TtsControl *control = &tetris->controls[controlType];
-                control->endedDown = message == WM_KEYDOWN;
-                control->wasDown = true;
-                bool wasDown = (wParam >> 30) & 1;
+                bool wasDown = ((lParam >> 30) & 1);
+                if (message == WM_KEYDOWN && !wasDown) {
+                    control->pressCount++;
+                }
 
-                if (message == WM_KEYUP || !wasDown) {
-                    control->transitions++;
+                if (message == WM_KEYUP) {
+                    control->releaseCount++;
                 }
             }
         } break;
@@ -145,12 +108,10 @@ LRESULT windowProc(
                 TtsControl *control = &tetris->controls[controlType];
                 bool isDownMessage = message == WM_LBUTTONDOWN || message == WM_RBUTTONDOWN || message == WM_MBUTTONDOWN;
                 if (isDownMessage) {
-                    control->wasDown = true;
+                    control->pressCount++;
+                } else {
+                    control->releaseCount++;
                 }
-
-                control->endedDown = isDownMessage;
-
-                control->transitions++;
             }
         } break;
 

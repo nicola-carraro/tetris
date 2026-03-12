@@ -123,6 +123,43 @@ static TtsReadResult platformReadEntireFile(char *path) {
     return result;
 }
 
+static int win32MapControlToVirtualKey(TtsControlType controlType) {
+    TTS_ASSERT(controlType > TtsControlType_None);
+    TTS_ASSERT(controlType < TtsControlType_Count);
+
+    int virtualKeys[TtsControlType_Count] = {
+        [TtsControlType_Left] = VK_LEFT,
+        [TtsControlType_Right] = VK_RIGHT,
+        [TtsControlType_Up] = VK_UP,
+        [TtsControlType_Down] = VK_DOWN,
+        [TtsControlType_Esc] = VK_ESCAPE,
+        [TtsControlType_Space] = VK_SPACE,
+        [TtsControlType_Enter] = VK_RETURN,
+        [TtsControlType_C] = 'C',
+        [TtsControlType_P] = 'P',
+        [TtsControlType_MouseLeft] = VK_LBUTTON,
+        [TtsControlType_MouseRight] = VK_RBUTTON,
+        [TtsControlType_MouseCenter] = VK_MBUTTON,
+    };
+
+    int result = virtualKeys[controlType];
+
+    return result;
+}
+
+static TtsControlType win32MapVirtualKeyToControl(int virtualKey) {
+    TtsControlType result = TtsControlType_None;
+
+    for (TtsControlType controlType = TtsControlType_None + 1; controlType < TtsControlType_Count; controlType++) {
+        if (win32MapControlToVirtualKey(controlType) == virtualKey) {
+            result = controlType;
+            break;
+        }
+    }
+
+    return result;
+}
+
 static void win32Update(TtsTetris *tetris) {
     if (tetris) {
         TtsPlatform *win32 = tetris->platform;
@@ -137,6 +174,11 @@ static void win32Update(TtsTetris *tetris) {
         ScreenToClient(tetris->platform->window, &mousePosition);
         tetris->mouseX = mousePosition.x;
         tetris->mouseY = mousePosition.y;
+
+        for (TtsControlType controlType = TtsControlType_None + 1; controlType < TtsControlType_Count; controlType++) {
+            int virtualKey = win32MapControlToVirtualKey(controlType);
+            tetris->controls[controlType].isDown = GetAsyncKeyState(virtualKey) < 0;
+        }
 
         float secondsElapsed = 0.0f;
 

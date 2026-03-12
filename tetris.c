@@ -19,6 +19,34 @@ static TtsColor ttsMakeColor(float r, float g, float b, float a) {
     return result;
 }
 
+static TtsControl ttsGetControl(TtsTetris *tetris, TtsControlType controlType) {
+    TTS_ASSERT(tetris);
+    TTS_ASSERT(controlType > TtsControlType_None);
+    TTS_ASSERT(controlType < TtsControlType_Count);
+
+    TtsControl result = tetris->controls[controlType];
+
+    return result;
+}
+
+static bool ttsControlPressed(TtsTetris *tetris, TtsControlType controlType) {
+    bool result = ttsGetControl(tetris, controlType).pressCount > 0;
+
+    return result;
+}
+
+static bool ttsControlReleased(TtsTetris *tetris, TtsControlType controlType) {
+    bool result = ttsGetControl(tetris, controlType).releaseCount > 0;
+
+    return result;
+}
+
+static bool ttsControlDown(TtsTetris *tetris, TtsControlType controlType) {
+    bool result = ttsGetControl(tetris, controlType).isDown;
+
+    return result;
+}
+
 static void ttsDrawGlyph(
     TtsTetris *tetris,
     TtsGlyph glyph,
@@ -363,29 +391,29 @@ static void ttsDrawCell(
     );
 }
 
-static uint32_t ttsPressCount(TtsControl control) {
-    uint32_t transitions = control.transitions;
+// static uint32_t ttsPressCount(TtsControl control) {
+// uint32_t transitions = control.transitions;
 
-    if (control.endedDown) {
-        transitions++;
-    }
+// if (control.endedDown) {
+// transitions++;
+// }
 
-    uint32_t result = transitions / 2;
+// uint32_t result = transitions / 2;
 
-    return result;
-}
+// return result;
+// }
 
-static uint32_t ttsReleaseCount(TtsControl control) {
-    uint32_t transitions = control.transitions;
+// static uint32_t ttsReleaseCount(TtsControl control) {
+// uint32_t transitions = control.transitions;
 
-    if (!control.endedDown) {
-        transitions++;
-    }
+// if (!control.endedDown) {
+// transitions++;
+// }
 
-    uint32_t result = transitions / 2;
+// uint32_t result = transitions / 2;
 
-    return result;
-}
+// return result;
+// }
 
 static TtsRotation ttsGetRotation(TtsRotationType rotationType) {
     TTS_ASSERT(rotationType > TtsRotationType_None);
@@ -644,6 +672,7 @@ static void spawnTetramino(TtsTetris *tetris) {
     tetris->horizontalDirection = TtsHorizontalDirection_None;
     tetris->playerXProgression = 0.0f;
     tetris->playerYProgression = 0.0f;
+    tetris->isSoftDropping = false;
     tetris->isHardDropping = false;
 }
 
@@ -821,11 +850,11 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
         spawnTetramino(tetris);
     }
 
-    if (!tetris->menuOpen && ttsPressCount(tetris->controls[TtsControlType_P]) % 2 != 0) {
+    if (!tetris->menuOpen && ttsControlPressed(tetris, TtsControlType_P)) {
         tetris->paused = !tetris->paused;
     }
 
-    if (ttsPressCount(tetris->controls[TtsControlType_Esc]) % 2 != 0) {
+    if (ttsControlPressed(tetris, TtsControlType_Esc)) {
         tetris->menuOpen = !tetris->menuOpen;
     }
 
@@ -917,32 +946,43 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
 
     // Player
     {
-        float verticalVelocity = 3.0f;
+        float verticalVelocity = 5.0f;
 
-        if (ttsPressCount(tetris->controls[TtsControlType_Space]) > 0) {
+        if (ttsControlPressed(tetris, TtsControlType_Space)) {
             tetris->isHardDropping = true;
+            tetris->isSoftDropping = false;
             platformPlaySound(tetris, tetris->soundEffects[TtsSoundEffect_Click]);
+        }
+
+        if (!tetris->isHardDropping && ttsControlPressed(tetris, TtsControlType_Down)) {
+            tetris->isSoftDropping = true;
+        }
+
+        if (!ttsControlDown(tetris, TtsControlType_Down)) {
+            tetris->isSoftDropping = false;
         }
 
         if (tetris->isHardDropping) {
             verticalVelocity = 200.0f;
-        } else if (tetris->controls[TtsControlType_Down].wasDown) {
+        } else if (tetris->isSoftDropping) {
             verticalVelocity *= 10.0f;
         }
-        float horizontalVelocity = 3.0f;
+        float horizontalVelocity = 8.0f;
 
         if (shouldUpdate(tetris)) {
             tetris->playerYProgression += verticalVelocity * secondsElapsed;
 
-            bool leftPressed = tetris->controls[TtsControlType_Left].wasDown;
-            bool rightPressed = tetris->controls[TtsControlType_Right].wasDown;
+            // bool leftPressed = ttsControlPressed(tetris, TtsControlType_Left);
+            // bool rightPressed = ttsControlPressed(tetris, TtsControlType_Right);
+            bool leftDown = ttsControlDown(tetris, TtsControlType_Left);
+            bool rightDown = ttsControlDown(tetris, TtsControlType_Right);
 
-            TtsHorizontalDirection previousDirection = TtsHorizontalDirection_None;
+            TtsHorizontalDirection previousDirection = tetris->horizontalDirection;
 
             if (!tetris->isHardDropping) {
-                if (leftPressed && !rightPressed) {
+                if (leftDown && !rightDown) {
                     tetris->horizontalDirection = TtsHorizontalDirection_Left;
-                } else if (rightPressed && !leftPressed) {
+                } else if (rightDown && !leftDown) {
                     tetris->horizontalDirection = TtsHorizontalDirection_Right;
                 } else {
                     tetris->horizontalDirection = TtsHorizontalDirection_None;
@@ -968,11 +1008,11 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
                 }
             }
 
-            for (uint32_t rotationIndex = 0; rotationIndex < ttsPressCount(tetris->controls[TtsControlType_C]); rotationIndex++) {
+            for (uint32_t pressIndex = 0; pressIndex < tetris->controls[TtsControlType_C].pressCount; pressIndex++) {
                 ttsRotatePlayer(tetris, -1);
             }
 
-            for (uint32_t rotationIndex = 0; rotationIndex < ttsPressCount(tetris->controls[TtsControlType_Up]); rotationIndex++) {
+            for (uint32_t pressIndex = 0; pressIndex < tetris->controls[TtsControlType_Up].pressCount; pressIndex++) {
                 ttsRotatePlayer(tetris, +1);
             }
         }
@@ -981,9 +1021,8 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
             ttsMoveVertically(tetris);
         }
 
-        while (tetris->playerXProgression > 1.0f || tetris->playerXProgression < -1.0f) {
-            tetris->horizontalDirection = TtsHorizontalDirection_None;
-            bool moveRight = tetris->playerXProgression > 1.0f ;
+        while (tetris->playerXProgression >= 1.0f || tetris->playerXProgression <= -1.0f) {
+            bool moveRight = tetris->playerXProgression > 0.0f ;
             float increment = moveRight ? 1.0f : -1.0f;
             TtsTetramino playerCells = ttsGetPlayerCells(tetris);
             TtsTetramino nextCells = ttsOffsetCells(playerCells, moveRight ? 1 : -1, 0);
@@ -1263,10 +1302,9 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
         float buttonLeft = menuLeft + buttonMargin;
         float buttonTop = menuTop + buttonMargin;
 
-        bool mousePressed = ttsPressCount(tetris->controls[TtsControlType_MouseLeft]) > 0;
-        bool mouseRelased = ttsReleaseCount(tetris->controls[TtsControlType_MouseLeft]) > 0;
+        bool mouseDown = ttsControlDown(tetris, TtsControlType_MouseLeft);
 
-        if (mouseRelased) {
+        if (!mouseDown) {
             tetris->pressedButton = TtsButtonType_None;
         }
 
@@ -1281,12 +1319,14 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
             float buttonBottom = buttonTop + buttonHeight;
 
             if (
-                mousePressed
+                mouseDown
                 && mouseX >=  buttonLeft && mouseX <= buttonRight
                 && mouseY >= buttonTop && mouseY <= buttonBottom
             ) {
                 tetris->pressedButton = buttonType;
             }
+
+            float buttonPadding = 0.0f;
 
             if (tetris->pressedButton == buttonType) {
                 float relaseThreshold = 5.0f;
@@ -1297,22 +1337,18 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
                     tetris->pressedButton = TtsButtonType_None;
                 }
 
-                ttsDrawCellLikeQuad(
-                    tetris,
-                    buttonLeft, buttonTop,
-                    buttonWidth, buttonHeight,
-                    3.0f,
-                    buttonColor
-                ) ;
+                buttonPadding = 3.0f;
             } else {
-                ttsDrawCellLikeQuad(
-                    tetris,
-                    buttonLeft, buttonTop,
-                    buttonWidth, buttonHeight,
-                    5.0f,
-                    buttonColor
-                ) ;
+                buttonPadding = 5.0f;
             }
+
+            ttsDrawCellLikeQuad(
+                tetris,
+                buttonLeft, buttonTop,
+                buttonWidth, buttonHeight,
+                buttonPadding,
+                buttonColor
+            ) ;
 
             float maxLineHeight = buttonHeight * 0.75f;
 
@@ -1328,7 +1364,7 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
             ttsDrawString(
                 tetris,
                 label,
-                buttonLeft + buttonMargin,
+                buttonLeft + (buttonWidth / 20.0f),
                 buttonTop + ((buttonHeight - lineHeight) / 2.0f),
                 fontScale,
                 fontColor
@@ -1338,9 +1374,8 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
     }
 
     for (uint32_t controlIndex = 1; controlIndex < TTS_ARRAYCOUNT(tetris->controls); controlIndex++) {
-        tetris->controls[controlIndex].wasDown = tetris->controls[controlIndex].endedDown;
-        tetris->controls[controlIndex].endedDown = 0;
-        tetris->controls[controlIndex].transitions = 0;
+        tetris->controls[controlIndex].pressCount = 0;
+        tetris->controls[controlIndex].releaseCount = 0;
     }
     tetris->frame++;
 }

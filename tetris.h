@@ -57,9 +57,9 @@ typedef struct {
 } TtsReadResult;
 
 typedef struct {
-    bool wasDown;
-    bool endedDown;
-    uint32_t transitions;
+    uint32_t pressCount;
+    uint32_t releaseCount;
+    bool isDown;
 } TtsControl;
 
 typedef enum {
@@ -247,6 +247,7 @@ typedef struct {
     uint32_t clearedLines;
     uint32_t seed;
     bool isHardDropping;
+	bool isSoftDropping;
 	float secondsToFadeEnd;
 	int32_t clearedRows[4];
     int32_t clearedRowsCount;
