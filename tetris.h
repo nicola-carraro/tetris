@@ -196,6 +196,15 @@ typedef struct {
 } TtsPatternFeatures;
 
 typedef enum {
+	TtsSoundType_None,
+	
+	TtsSoundType_Effect,
+	TtsSoundType_Music,
+	
+	TtsSoundType_Count,
+} TtsSoundType;
+
+typedef enum {
     TtsSoundEffect_None,
 
     TtsSoundEffect_Whoosh,
@@ -253,5 +262,8 @@ typedef struct {
     int32_t clearedRowsCount;
 	TtsButtonType pressedButton;
 	TtsButtonType hoveredButton;
+	bool musicOff;
+	bool effectsOff;
+	bool shouldQuit;
 	
 } TtsTetris;

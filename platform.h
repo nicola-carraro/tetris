@@ -21,6 +21,10 @@ static TtsReadResult platformReadEntireFile(char *path);
 
 static void platformDebugPrint(_Printf_format_string_ const char *format, ...);
 
-static void platformPlayMusic(TtsTetris *tetris, Wav wav);
+static void platformPlaySound(TtsTetris *tetris, Wav wav, TtsSoundType soundType);
 
-static void platformPlaySound(TtsTetris *tetris, Wav wav);
+static void platformPauseSound(TtsTetris *tetris, TtsSoundType soundType);
+
+static void platformResumeSound(TtsTetris *tetris, TtsSoundType soundType);
+
+static void platformMemset(void * pointer, int value, size_t count);

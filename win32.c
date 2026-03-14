@@ -40,7 +40,7 @@ struct TtsPlatform {
     IXAudio2 *xaudio;
     IXAudio2MasteringVoice *masteringVoice;
     IXAudio2SourceVoice *music;
-    IXAudio2SourceVoice *sound;
+    IXAudio2SourceVoice *effects;
     Vertices vertices;
     LONGLONG performanceFrequency;
     LONGLONG previousTicks;
@@ -194,9 +194,17 @@ static void win32Update(TtsTetris *tetris) {
 
         ttsUpdate(tetris, secondsElapsed);
 
+        if (tetris->shouldQuit) {
+            PostQuitMessage(0);
+        }
+
         d3d11Render(tetris, newWidth, newHeight);
         tetris->windowWidth = newWidth;
         tetris->windowHeight = newHeight;
         tetris->wasResizing = tetris->isResizing;
     }
+}
+
+static void platformMemset(void * pointer, int value, size_t count) {
+    memset(pointer, value, count);
 }
