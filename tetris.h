@@ -27,6 +27,8 @@ typedef struct {
     float a;
 } TtsColor;
 
+
+
 typedef struct {
     char *text;
     uint64_t size;
@@ -224,6 +226,10 @@ typedef enum {
 	
 	TtsButtonType_Count,
 } TtsButtonType;
+
+typedef struct {
+	TtsColor colors[TtsTetraminoType_Count];
+} TtsColorScheme;
 
 typedef struct {
     TtsPlatform *platform;

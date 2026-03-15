@@ -189,21 +189,76 @@ TtsTetraminoPattern ttsGetTetraminoPattern(TtsTetraminoType tetraminoType) {
     return result;
 }
 
-TtsColor ttsGetTetraminoColor(TtsTetraminoType tetraminoType) {
+static uint32_t ttsGetCurrentLevel(TtsTetris *tetris) {
+    uint32_t result = (tetris->clearedLines / 10) + 1;
+
+    return result;
+}
+
+TtsColorScheme ttsGetColorScheme(TtsTetris *tetris) {
+    uint32_t level = ttsGetCurrentLevel(tetris);
+
+    TtsColorScheme schemes[] = {
+		 {
+            {
+                [TtsTetraminoType_I] = {188.0f, 251.0f, 137.0f, 255.0f},
+                [TtsTetraminoType_O] = {5.0f, 194.0f, 116.0f, 255.0f},
+                [TtsTetraminoType_T] = {9.0f, 69.0f, 66.0f, 255.0f},
+                [TtsTetraminoType_L] = {133.0f, 213.0f, 246.0f, 255.0f},
+                [TtsTetraminoType_J] = {232.0f, 250.0f, 224.0f, 255.0f},
+                [TtsTetraminoType_Z] = {92.0f, 184.0f, 85.0f, 255.0f},
+                [TtsTetraminoType_S] = {71.0f, 89.0f, 221.0f, 255.0f},
+            }
+        },
+		 {
+            {
+                [TtsTetraminoType_I] = {253.0f, 63.0f, 89.0f, 255.0f},
+                [TtsTetraminoType_O] = {255.0f, 200.0f, 46.0f, 255.0f},
+                [TtsTetraminoType_T] = {254.0f, 251.0f, 52.0f, 255.0f},
+                [TtsTetraminoType_L] = {83.0f, 218.0f, 63.0f, 255.0f},
+                [TtsTetraminoType_J] = {1.0f, 237.0f, 250.0f, 255.0f},
+                [TtsTetraminoType_Z] = {221.0f, 10.0f, 178.0f, 255.0f},
+                [TtsTetraminoType_S] = {234.0f, 20.0f, 28.0f, 255.0f},
+            }
+        },
+        {
+            {
+                [TtsTetraminoType_I] = {224.0f, 19.0f, 5.0f, 255.0f},
+                [TtsTetraminoType_O] = {237.0f, 181.0f, 94.0f, 255.0f},
+                [TtsTetraminoType_T] = {125.0f, 88.0f, 217.0f, 255.0f},
+                [TtsTetraminoType_L] = {214.0f, 195.0f, 223.0f, 255.0f},
+                [TtsTetraminoType_J] = {225.0f, 225.0f, 225.0f, 255.0f},
+                [TtsTetraminoType_Z] = {92.0f, 184.0f, 85.0f, 255.0f},
+                [TtsTetraminoType_S] = {225.0f, 225.0f, 225.0f, 255.0f},
+            }
+        },
+        {
+            {
+                [TtsTetraminoType_I] = {0.0f, 205.0f, 205.0f, 255.0f},
+                [TtsTetraminoType_O] = {205.0f, 205.0f, 0.0f, 255.0f},
+                [TtsTetraminoType_T] = {154.0f, 0.0f, 205.0f, 255.0f},
+                [TtsTetraminoType_L] = {205.0f, 102.0f, 0.0f, 255.0f},
+                [TtsTetraminoType_J] = {0.0f, 0.0f, 205.0f, 255.0f},
+                [TtsTetraminoType_Z] = {0.0f, 205.0f, 0.0f, 255.0f},
+                [TtsTetraminoType_S] = {205.0f, 0.0f, 0.0f, 255.0f},
+            }
+        }
+    };
+
+    uint32_t schemeIndex = (level - 1) % TTS_ARRAYCOUNT(schemes);
+
+    TtsColorScheme result = schemes[schemeIndex];
+
+    return result;
+}
+
+TtsColor ttsGetTetraminoColor(TtsTetris *tetris, TtsTetraminoType tetraminoType) {
     TTS_ASSERT(tetraminoType > TtsTetraminoType_None);
     TTS_ASSERT(tetraminoType < TtsTetraminoType_Count);
 
-    TtsColor colors[TtsTetraminoType_Count] = {
-        [TtsTetraminoType_I] = {0.0f, 205.0f, 205.0f, 255.0f},
-        [TtsTetraminoType_O] = {205.0f, 205.0f, 0.0f, 255.0f},
-        [TtsTetraminoType_T] = {154.0f, 0.0f, 205.0f, 255.0f},
-        [TtsTetraminoType_L] = {205.0f, 102.0f, 0.0f, 255.0f},
-        [TtsTetraminoType_J] = {0.0f, 0.0f, 205.0f, 255.0f},
-        [TtsTetraminoType_Z] = {0.0f, 205.0f, 0.0f, 255.0f},
-        [TtsTetraminoType_S] = {205.0f, 0.0f, 0.0f, 255.0f},
-    };
+    TtsColorScheme scheme = ttsGetColorScheme(tetris);
 
-    TtsColor result = colors[tetraminoType];
+    TtsColor result = scheme.colors[tetraminoType];
 
     return result;
 }
@@ -761,7 +816,7 @@ static TtsFloatCoords ttsCenterTetraminoInBox(TtsTetraminoType type, float x, fl
 static void ttsDrawCenteredPattern(TtsTetris *tetris, TtsTetraminoType type, float boxX, float  boxY, float boxWidth,float  boxHeight,float  cellSideInPixels) {
     TtsFloatCoords offset = ttsCenterTetraminoInBox(type, boxX, boxY, boxWidth, boxHeight, cellSideInPixels);
 
-    TtsColor color = ttsGetTetraminoColor(type);
+    TtsColor color = ttsGetTetraminoColor(tetris, type);
 
     TtsTetraminoPattern pattern = ttsGetTetraminoPattern(type);
 
@@ -831,12 +886,6 @@ static TtsString ttsFormatNumber(uint32_t number, char *dest, uint32_t destSize)
         result.text = dest + charIndex;
         result.size = destSize - charIndex;
     }
-
-    return result;
-}
-
-static uint32_t ttsGetCurrentLevel(TtsTetris *tetris) {
-    uint32_t result = (tetris->clearedLines / 10) + 1;
 
     return result;
 }
@@ -1079,7 +1128,7 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
         }
 
         TtsTetramino playerCells = ttsGetPlayerCells(tetris);
-        TtsColor color = ttsGetTetraminoColor(tetris->playerType);
+        TtsColor color = ttsGetTetraminoColor(tetris, tetris->playerType);
         for (int32_t cellIndex = 0; cellIndex < TTS_ARRAYCOUNT(playerCells.cells); cellIndex++) {
             if (playerCells.cells[cellIndex].y >= 0) {
                 ttsDrawCell(
@@ -1150,7 +1199,7 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
                 TtsTetraminoType cell = tetris->grid[rowIndex][columnIndex];
 
                 if (!ttsIsCellAvailable(tetris, columnIndex, rowIndex)) {
-                    TtsColor color = ttsGetTetraminoColor(cell);
+                    TtsColor color = ttsGetTetraminoColor(tetris, cell);
 
                     if (isClearedRow && ttsIsFading(tetris)) {
                         float fadeRatio = 1.0f - (tetris->secondsToFadeEnd / TTS_FADE_SECONDS);
@@ -1351,7 +1400,7 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
         for (TtsButtonType buttonType = TtsButtonType_None + 1; buttonType < TtsButtonType_Count; buttonType++) {
             TtsString label = ttsGetButtonLabel(tetris, buttonType);
             TtsTetraminoType tetraminoType = ttsGetButtonTetraminoType(buttonType);
-            TtsColor buttonColor = ttsGetTetraminoColor(tetraminoType);
+            TtsColor buttonColor = ttsGetTetraminoColor(tetris, tetraminoType);
 
             float mouseX = (float) tetris->mouseX;
             float mouseY = (float) tetris->mouseY;
