@@ -199,7 +199,7 @@ TtsColorScheme ttsGetColorScheme(TtsTetris *tetris) {
     uint32_t level = ttsGetCurrentLevel(tetris);
 
     TtsColorScheme schemes[] = {
-		 {
+        {
             {
                 [TtsTetraminoType_I] = {188.0f, 251.0f, 137.0f, 255.0f},
                 [TtsTetraminoType_O] = {5.0f, 194.0f, 116.0f, 255.0f},
@@ -210,7 +210,7 @@ TtsColorScheme ttsGetColorScheme(TtsTetris *tetris) {
                 [TtsTetraminoType_S] = {71.0f, 89.0f, 221.0f, 255.0f},
             }
         },
-		 {
+        {
             {
                 [TtsTetraminoType_I] = {253.0f, 63.0f, 89.0f, 255.0f},
                 [TtsTetraminoType_O] = {255.0f, 200.0f, 46.0f, 255.0f},
@@ -746,11 +746,11 @@ static void ttsMoveVertically(TtsTetris *tetris) {
     if (ttsIsPositionAvailable(tetris, cellsBelow)) {
         tetris->playerYProgression -= 1.0f;
         tetris->playerYInCells += 1.0f;
-		if (tetris->isHardDropping) {
-			tetris->score += 2;
-		} else if (tetris->isSoftDropping) {
-			tetris->score += 1;
-		}
+        if (tetris->isHardDropping) {
+            tetris->score += 2;
+        } else if (tetris->isSoftDropping) {
+            tetris->score += 1;
+        }
     } else {
         int32_t minY = TTS_ROW_COUNT;
         int32_t maxY = -2;
@@ -941,6 +941,18 @@ static void ttsNewGame(TtsTetris *tetris) {
     ttsCloseMenu(tetris);
 }
 
+static float ttsGetVelocityMultiplier(TtsTetris *tetris) {
+    float result = 1.0f;
+
+    uint32_t currentLevel = ttsGetCurrentLevel(tetris);
+
+    for (uint32_t level = 1; level < currentLevel; level++) {
+        result *= 1.5f;
+    }
+
+    return result;
+}
+
 static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
     if (tetris->frame == 0) {
         spawnTetramino(tetris);
@@ -1043,7 +1055,8 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
 
     // Player
     {
-        float verticalVelocity = 5.0f;
+        float velocityMultiplier = ttsGetVelocityMultiplier(tetris);
+        float verticalVelocity = 5.0f * velocityMultiplier;
 
         if (ttsControlPressed(tetris, TtsControlType_Space)) {
             tetris->isHardDropping = true;
