@@ -746,6 +746,11 @@ static void ttsMoveVertically(TtsTetris *tetris) {
     if (ttsIsPositionAvailable(tetris, cellsBelow)) {
         tetris->playerYProgression -= 1.0f;
         tetris->playerYInCells += 1.0f;
+		if (tetris->isHardDropping) {
+			tetris->score += 2;
+		} else if (tetris->isSoftDropping) {
+			tetris->score += 1;
+		}
     } else {
         int32_t minY = TTS_ROW_COUNT;
         int32_t maxY = -2;
