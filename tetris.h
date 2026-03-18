@@ -17,6 +17,7 @@
 #define TTS_MAX(a, b) ((a) > (b) ? (a) : (b))
 #define TTS_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define TTS_FADE_SECONDS 0.5f
+#define TTS_DATA_DIR "../data/"
 
 typedef struct TtsPlatform TtsPlatform;
 
@@ -211,6 +212,7 @@ typedef enum {
 
     TtsSoundEffect_Whoosh,
     TtsSoundEffect_Click,
+	TtsSoundEffect_GameOver,
 
     TtsSoundEffect_Count,
 } TtsSoundEffect;
@@ -271,5 +273,8 @@ typedef struct {
 	bool musicOff;
 	bool effectsOff;
 	bool shouldQuit;
-	
+	bool gameOver;
+	uint16_t gameOverAnimationRows;
+	float secondsToNextGameOverRow;
+	float secondsToOpenMenu;
 } TtsTetris;

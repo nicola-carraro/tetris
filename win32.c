@@ -19,7 +19,7 @@ typedef struct {
 } VsConstants;
 
 typedef struct  {
-    Vertex vertices[6 * 1024];
+    Vertex vertices[10 * 1024];
     UINT vertexCount;
 } Vertices;
 
