@@ -1,5 +1,5 @@
 void xaudio2WavPlay(TtsTetris *tetris, IXAudio2SourceVoice **sourceVoice, Wav wav, bool loop) {
-    if (tetris->hasSound) {
+    if (tetris->platform->hasSound) {
         IXAudio2 *xaudio = tetris->platform->xaudio;
 
         if (*sourceVoice != 0) {
@@ -70,9 +70,10 @@ static void platformResumeSound(TtsTetris *tetris, TtsSoundType soundType) {
     }
 }
 
-static BOOL xaudio2Init(TtsPlatform *platform) {
+void xaudio2Init(TtsPlatform *platform) {
     HRESULT hr = CoInitializeEx(0, COINIT_MULTITHREADED);
-    BOOL ok = SUCCEEDED(hr);
+
+    bool ok = SUCCEEDED(hr);
 
     if (ok) {
         hr = XAudio2Create(&platform->xaudio, 0,XAUDIO2_DEFAULT_PROCESSOR);
@@ -90,8 +91,6 @@ static BOOL xaudio2Init(TtsPlatform *platform) {
             0,
             0
         );
-        ok = SUCCEEDED(hr);
+        platform->hasSound = true;
     }
-
-    return ok;
 }

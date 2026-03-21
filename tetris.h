@@ -18,6 +18,7 @@
 #define TTS_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define TTS_FADE_SECONDS 0.5f
 #define TTS_DATA_DIR "../data/"
+#define TTS_ALLOCATION_SIZE (512 * 1024 * 1024)
 
 typedef struct TtsPlatform TtsPlatform;
 
@@ -234,13 +235,19 @@ typedef struct {
 } TtsColorScheme;
 
 typedef struct {
+	uint64_t used;
+	uint64_t capacity;
+	void *buffer;
+} TtsArena;
+
+typedef struct {
     TtsPlatform *platform;
     TtsAtlas atlas;
+	TtsArena arena;
     uint32_t windowWidth;
     uint32_t windowHeight;
     bool isResizing;
     bool wasResizing;
-    bool hasSound;
 	bool menuOpen;
     Wav music;
     Wav soundEffects[TtsSoundEffect_Count];

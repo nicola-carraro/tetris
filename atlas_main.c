@@ -28,6 +28,7 @@
 
 #pragma comment(lib, "Gdi32")
 #pragma comment(lib, "User32")
+#pragma comment(lib, "Ole32.lib")
 
 typedef struct {
     uint32_t codepoint;

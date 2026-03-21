@@ -13,6 +13,40 @@ static TtsString ttsMakeString (char *text, uint64_t size) {
     return result;
 }
 
+static bool ttsArenaInit(
+    TtsArena *arena, uint64_t size
+) {
+    bool result = false;
+
+    void *buffer = platformAllocate(size);
+
+    if (buffer) {
+        arena->capacity = size;
+        arena->buffer = buffer;
+        result = true;
+    }
+
+    return result;
+}
+
+static void *ttsArenaPushSize(TtsArena *arena, uint64_t size) {
+    uint64_t newUsed = arena->used + size;
+
+    uint64_t alignement = 64;
+
+    if (newUsed % alignement != 0) {
+        newUsed = ((newUsed / alignement) + 1) * alignement;
+    }
+
+    TTS_ASSERT(newUsed <= arena->capacity);
+
+    void *result = ((uint8_t *) arena->buffer) + arena->used;
+
+    arena->used = newUsed;
+
+    return result;
+}
+
 static TtsColor ttsMakeColor(float r, float g, float b, float a) {
     TtsColor result = {r, g, b, a};
 
@@ -135,36 +169,40 @@ static Wav ttsWavParseFile(TtsReadResult file) {
     return wav;
 }
 
-static TtsTetris ttsInit(TtsPlatform *platform, bool hasSound) {
-    TtsTetris result = {0};
-    bool ok = 0;
-    result.platform = platform;
-    result.hasSound = hasSound;
+static bool ttsInit(TtsTetris *tetris, uint64_t platformSize) {
+    bool result = false;
 
-    TtsReadResult musicFile = {0};
-    musicFile = platformReadEntireFile(TTS_DATA_DIR "tetris.wav");
-    ok = musicFile.size > 0;
+    if (ttsArenaInit(&tetris->arena, TTS_ALLOCATION_SIZE)) {
+        result = true;
 
-    if (ok) {
-        result.music = ttsWavParseFile(musicFile);
-    }
+        bool ok = true;
+        tetris->platform = ttsArenaPushSize(&tetris->arena , platformSize);
 
-    result.backgroundColor = ttsMakeColor(34.0f, 67.0f, 74.0f, 255.0f);
-
-    char paths[TtsSoundEffect_Count][256] = {
-        [TtsSoundEffect_Whoosh] = TTS_DATA_DIR "whoosh.wav",
-        [TtsSoundEffect_Click] = TTS_DATA_DIR "click.wav",
-        [TtsSoundEffect_GameOver] = TTS_DATA_DIR "game_over.wav",
-    };
-
-    for (TtsSoundEffect effect = TtsSoundEffect_None + 1; effect < TtsSoundEffect_Count; effect++) {
-        TtsReadResult soundFile = {0};
-        char *path = paths[effect];
-        soundFile = platformReadEntireFile(path);
-        ok = soundFile.size > 0;
+        TtsReadResult musicFile = {0};
+        musicFile = platformReadEntireFile(TTS_DATA_DIR "tetris.wav", &tetris->arena);
+        ok = musicFile.size > 0;
 
         if (ok) {
-            result.soundEffects[effect] = ttsWavParseFile(soundFile);
+            tetris->music = ttsWavParseFile(musicFile);
+        }
+
+        tetris->backgroundColor = ttsMakeColor(34.0f, 67.0f, 74.0f, 255.0f);
+
+        char paths[TtsSoundEffect_Count][256] = {
+            [TtsSoundEffect_Whoosh] = TTS_DATA_DIR "whoosh.wav",
+            [TtsSoundEffect_Click] = TTS_DATA_DIR "click.wav",
+            [TtsSoundEffect_GameOver] = TTS_DATA_DIR "game_over.wav",
+        };
+
+        for (TtsSoundEffect effect = TtsSoundEffect_None + 1; effect < TtsSoundEffect_Count; effect++) {
+            TtsReadResult soundFile = {0};
+            char *path = paths[effect];
+            soundFile = platformReadEntireFile(path, &tetris->arena);
+            ok = soundFile.size > 0;
+
+            if (ok) {
+                tetris->soundEffects[effect] = ttsWavParseFile(soundFile);
+            }
         }
     }
 

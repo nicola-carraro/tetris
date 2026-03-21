@@ -123,8 +123,6 @@ LRESULT windowProc(
     return result;
 }
 
-#pragma warning(push)
-#pragma warning(disable :6262)
 int WinMain(
     _In_     HINSTANCE instance,
     _In_opt_ HINSTANCE previousInstance,
@@ -134,73 +132,75 @@ int WinMain(
     TTS_UNREFERENCED(previousInstance);
     TTS_UNREFERENCED(commandLine);
     TTS_UNREFERENCED(showCommand);
-    TtsPlatform win32 = {0};
 
-    WNDCLASSEXA windowClass = {0};
+    TtsTetris tetris = {0};
+    if (ttsInit(&tetris, sizeof(TtsPlatform))){
+        WNDCLASSEXA windowClass = {0};
 
-    win32.performanceFrequency = win32QueryPerformanceFrequency();
+        tetris.platform->performanceFrequency = win32QueryPerformanceFrequency();
 
-    char className[] = "tetris";
-    {
-        windowClass.cbSize = sizeof(windowClass);
-        windowClass.style = 0;
-        windowClass.lpfnWndProc = windowProc;
-        windowClass.cbClsExtra = 0;
-        windowClass.cbWndExtra = 0;
-        windowClass.hInstance = instance;
-        windowClass.hIcon = 0;
-        windowClass.hCursor = LoadCursor(0, IDC_ARROW);
-        windowClass.hbrBackground = (HBRUSH)COLOR_WINDOW;
-        windowClass.lpszMenuName = 0;
-        windowClass.lpszClassName = className;
-        windowClass.hIconSm = 0;
-    }
+        char className[] = "tetris";
+        {
+            windowClass.cbSize = sizeof(windowClass);
+            windowClass.style = 0;
+            windowClass.lpfnWndProc = windowProc;
+            windowClass.cbClsExtra = 0;
+            windowClass.cbWndExtra = 0;
+            windowClass.hInstance = instance;
+            windowClass.hIcon = 0;
+            windowClass.hCursor = LoadCursor(0, IDC_ARROW);
+            windowClass.hbrBackground = (HBRUSH)COLOR_WINDOW;
+            windowClass.lpszMenuName = 0;
+            windowClass.lpszClassName = className;
+            windowClass.hIconSm = 0;
+        }
 
-    if (RegisterClassExA(&windowClass)) {
-        win32.window = CreateWindowExA(
-            0,
-            className,
-            "Tetris",
-            WS_OVERLAPPEDWINDOW | WS_MAXIMIZE,
-            CW_USEDEFAULT,
-            CW_USEDEFAULT,
-            CW_USEDEFAULT,
-            CW_USEDEFAULT,
-            0,
-            0,
-            instance,
-            0
-        );
-        bool hasSound = xaudio2Init(&win32);
-        TtsTetris tetris = ttsInit(&win32, hasSound);
+        if (RegisterClassExA(&windowClass)) {
+            tetris.platform->window = CreateWindowExA(
+                0,
+                className,
+                "Tetris",
+                WS_OVERLAPPEDWINDOW | WS_MAXIMIZE,
+                CW_USEDEFAULT,
+                CW_USEDEFAULT,
+                CW_USEDEFAULT,
+                CW_USEDEFAULT,
+                0,
+                0,
+                instance,
+                0
+            );
 
-        FILETIME systemTime = {0};
-        GetSystemTimePreciseAsFileTime(&systemTime);
+            xaudio2Init(tetris.platform);
 
-        tetris.seed = systemTime.dwLowDateTime;
+            FILETIME systemTime = {0};
+            GetSystemTimePreciseAsFileTime(&systemTime);
 
-        if (win32.window && d3d11Init(&tetris)) {
-            SetWindowLongPtrA(win32.window, GWLP_USERDATA, (LONG_PTR) &tetris);
-            ShowWindow(win32.window, SW_MAXIMIZE);
+            tetris.seed = systemTime.dwLowDateTime;
 
-            for (BOOL running = 1; running;) {
-                MSG message = {0};
-                while (PeekMessageA(&message, 0, 0, 0, PM_REMOVE)) {
-                    if (message.message == WM_QUIT) {
-                        running = 0;
-                        break;
-                    } else {
-                        TranslateMessage(&message);
-                        DispatchMessageA(&message);
+            if (tetris.platform->window && d3d11Init(&tetris)) {
+                SetWindowLongPtrA(tetris.platform->window, GWLP_USERDATA, (LONG_PTR) &tetris);
+                ShowWindow(tetris.platform->window, SW_MAXIMIZE);
+
+                for (BOOL running = 1; running;) {
+                    MSG message = {0};
+                    while (PeekMessageA(&message, 0, 0, 0, PM_REMOVE)) {
+                        if (message.message == WM_QUIT) {
+                            running = 0;
+                            break;
+                        } else {
+                            TranslateMessage(&message);
+                            DispatchMessageA(&message);
+                        }
                     }
-                }
 
-                if (running) {
-                    win32Update(&tetris);
+                    if (running) {
+                        win32Update(&tetris);
+                    }
                 }
             }
         }
     }
+
     return 0;
 }
-#pragma warning(pop)

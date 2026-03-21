@@ -264,7 +264,7 @@ static BOOL d3d11Init(TtsTetris *tetris) {
     TtsReadResult file = {0};
 
     if (ok) {
-        file = platformReadEntireFile(TTS_ATLAS_PATH);
+        file = platformReadEntireFile(TTS_ATLAS_PATH, &tetris->arena);
         ok = file.size > 0;
     }
 

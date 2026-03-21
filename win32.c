@@ -19,7 +19,7 @@ typedef struct {
 } VsConstants;
 
 typedef struct  {
-    Vertex vertices[10 * 1024];
+    Vertex vertices[64 * 1024];
     UINT vertexCount;
 } Vertices;
 
@@ -44,6 +44,7 @@ struct TtsPlatform {
     Vertices vertices;
     LONGLONG performanceFrequency;
     LONGLONG previousTicks;
+    bool hasSound;
 };
 
 static void platformDebugPrint(_Printf_format_string_ const char *format, ...) {
@@ -80,7 +81,7 @@ static LONGLONG win32QueryPerformanceCounter() {
     return performanceCounter.QuadPart;
 }
 
-static TtsReadResult platformReadEntireFile(char *path) {
+static TtsReadResult platformReadEntireFile(char *path, TtsArena *arena) {
     TtsReadResult result = {0};
 
     HANDLE file = CreateFile(path, GENERIC_READ, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
@@ -88,37 +89,30 @@ static TtsReadResult platformReadEntireFile(char *path) {
     if (file != INVALID_HANDLE_VALUE) {
         LONGLONG fileSize = win32GetFileSize(file);
 
-        void *destination = VirtualAlloc(
-            0,
-            fileSize,
-            MEM_COMMIT | MEM_RESERVE,
-            PAGE_READWRITE
-        );
+        void *destination = ttsArenaPushSize(arena, fileSize);
 
-        if (destination) {
-            LONGLONG remainingBytesToRead = fileSize;
+        LONGLONG remainingBytesToRead = fileSize;
 
-            BOOL ok = 1;
+        BOOL ok = 1;
 
-            uint8_t *bytes = (uint8_t *) destination;
+        uint8_t *bytes = (uint8_t *) destination;
 
-            while (ok && remainingBytesToRead > 0) {
-                DWORD readSize = remainingBytesToRead > MAXDWORD ? MAXDWORD : (DWORD) remainingBytesToRead;
-                DWORD bytesRead = 0;
+        while (ok && remainingBytesToRead > 0) {
+            DWORD readSize = remainingBytesToRead > MAXDWORD ? MAXDWORD : (DWORD) remainingBytesToRead;
+            DWORD bytesRead = 0;
 
-                ok = ReadFile(file, bytes + fileSize - remainingBytesToRead, readSize, &bytesRead, 0);
+            ok = ReadFile(file, bytes + fileSize - remainingBytesToRead, readSize, &bytesRead, 0);
 
-                if (ok) {
-                    remainingBytesToRead -= bytesRead;
-                }
+            if (ok) {
+                remainingBytesToRead -= bytesRead;
             }
-
-            if (remainingBytesToRead == 0) {
-                result.data = destination;
-                result.size = fileSize;
-            }
-            CloseHandle(file);
         }
+
+        if (remainingBytesToRead == 0) {
+            result.data = destination;
+            result.size = fileSize;
+        }
+        CloseHandle(file);
     }
     return result;
 }
@@ -207,4 +201,10 @@ static void win32Update(TtsTetris *tetris) {
 
 static void platformMemset(void * pointer, int value, size_t count) {
     memset(pointer, value, count);
+}
+
+static void *platformAllocate(uint64_t size) {
+    void *result = VirtualAlloc(0, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+
+    return result;
 }

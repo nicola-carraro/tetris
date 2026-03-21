@@ -17,7 +17,7 @@ static void platformDrawColorTriangle(
     TtsPlatform *win32
 );
 
-static TtsReadResult platformReadEntireFile(char *path);
+static TtsReadResult platformReadEntireFile(char *path, TtsArena *arena);
 
 static void platformDebugPrint(_Printf_format_string_ const char *format, ...);
 
@@ -28,3 +28,5 @@ static void platformPauseSound(TtsTetris *tetris, TtsSoundType soundType);
 static void platformResumeSound(TtsTetris *tetris, TtsSoundType soundType);
 
 static void platformMemset(void * pointer, int value, size_t count);
+
+static void *platformAllocate(uint64_t size);
