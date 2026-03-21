@@ -202,6 +202,18 @@ TtsColorScheme ttsGetColorScheme(TtsTetris *tetris) {
     TtsColorScheme schemes[] = {
         {
             {
+                [TtsTetraminoType_I] = {116.0f, 238.0f, 248.0f, 255.0f},
+                [TtsTetraminoType_O] = {7.0f, 8.0f, 54.0f, 255.0f},
+                [TtsTetraminoType_T] = {84.0f, 116.0f, 172.0f, 255.0f},
+
+                [TtsTetraminoType_L] = {220.0f, 4.0f, 100.0f, 255.0f},
+                [TtsTetraminoType_J] = {220.0f, 4.0f, 100.0f, 255.0f},
+                [TtsTetraminoType_Z] = {98.0f, 9.0f, 74.0f, 255.0f},
+                [TtsTetraminoType_S] = {180.0f, 151.0f, 98.0f, 255.0f},
+            }
+        },
+        {
+            {
                 [TtsTetraminoType_I] = {188.0f, 251.0f, 137.0f, 255.0f},
                 [TtsTetraminoType_O] = {5.0f, 194.0f, 116.0f, 255.0f},
                 [TtsTetraminoType_T] = {9.0f, 69.0f, 66.0f, 255.0f},
