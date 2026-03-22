@@ -1106,7 +1106,7 @@ static float ttsGetVelocityMultiplier(TtsTetris *tetris) {
     uint32_t currentLevel = ttsGetCurrentLevel(tetris);
 
     for (uint32_t level = 1; level < currentLevel; level++) {
-        result *= 1.5f;
+        result *= 1.2f;
     }
 
     return result;
@@ -1226,7 +1226,7 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
     // Player
     {
         float velocityMultiplier = ttsGetVelocityMultiplier(tetris);
-        float verticalVelocity = 5.0f * velocityMultiplier;
+        float verticalVelocity = 3.0f * velocityMultiplier;
 
         if (ttsControlPressed(tetris, TtsControlType_Space)) {
             tetris->isHardDropping = true;
