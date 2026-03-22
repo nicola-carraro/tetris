@@ -219,9 +219,23 @@ typedef enum {
     TtsSoundEffect_Whoosh,
     TtsSoundEffect_Click,
 	TtsSoundEffect_GameOver,
+	TtsSoundEffect_Ding,
+	TtsSoundEffect_Success,
+	TtsSoundEffect_Pluck,
+	TtsSoundEffect_Yay,
+    TtsSoundEffect_LevelUp,
 
     TtsSoundEffect_Count,
 } TtsSoundEffect;
+
+typedef enum {
+    TtsMusic_None,
+	
+    TtsMusic_Theme,
+    TtsMusic_Celebrate,
+
+    TtsMusic_Count,
+} TtsMusic;
 
 typedef enum {
 	TtsButtonType_None,
@@ -254,7 +268,7 @@ typedef struct {
     bool isResizing;
     bool wasResizing;
 	bool menuOpen;
-    Wav music;
+    Wav musics[TtsMusic_Count];
     Wav soundEffects[TtsSoundEffect_Count];
     uint64_t frame;
     TtsControl controls[TtsControlType_Count];
@@ -286,7 +300,8 @@ typedef struct {
 	bool effectsOff;
 	bool shouldQuit;
 	bool gameOver;
-	uint16_t gameOverAnimationRows;
-	float secondsToNextGameOverRow;
+	uint16_t gameOverAnimationSteps;
+	float secondsToNextGameOverAnimation;
 	float secondsToOpenMenu;
+	bool won;
 } TtsTetris;

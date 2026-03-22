@@ -175,34 +175,38 @@ static bool ttsInit(TtsTetris *tetris, uint64_t platformSize) {
     if (ttsArenaInit(&tetris->arena, TTS_ALLOCATION_SIZE)) {
         result = true;
 
-        bool ok = true;
         tetris->platform = ttsArenaPushSize(&tetris->arena , platformSize);
 
-        TtsReadResult musicFile = {0};
-        musicFile = platformReadEntireFile(TTS_DATA_DIR "tetris.wav", &tetris->arena);
-        ok = musicFile.size > 0;
+        char musicPaths[TtsMusic_Count][256] = {
+            [TtsMusic_Theme] = TTS_DATA_DIR "theme.wav",
+            [TtsMusic_Celebrate] = TTS_DATA_DIR "celebrate.wav",
+        };
 
-        if (ok) {
-            tetris->music = ttsWavParseFile(musicFile);
+        for (TtsMusic music = TtsMusic_None + 1; music < TtsMusic_Count; music++) {
+            TtsReadResult soundFile = {0};
+            char *path = musicPaths[music];
+            soundFile = platformReadEntireFile(path, &tetris->arena);
+            tetris->musics[music] = ttsWavParseFile(soundFile);
         }
 
         tetris->backgroundColor = ttsMakeColor(34.0f, 67.0f, 74.0f, 255.0f);
 
-        char paths[TtsSoundEffect_Count][256] = {
+        char effectsPaths[TtsSoundEffect_Count][256] = {
             [TtsSoundEffect_Whoosh] = TTS_DATA_DIR "whoosh.wav",
             [TtsSoundEffect_Click] = TTS_DATA_DIR "click.wav",
             [TtsSoundEffect_GameOver] = TTS_DATA_DIR "game_over.wav",
+            [TtsSoundEffect_Ding] = TTS_DATA_DIR "ding.wav",
+            [TtsSoundEffect_Success] = TTS_DATA_DIR "success.wav",
+            [TtsSoundEffect_Pluck] = TTS_DATA_DIR "pluck.wav",
+            [TtsSoundEffect_Yay] = TTS_DATA_DIR "yay.wav",
+			[TtsSoundEffect_LevelUp] = TTS_DATA_DIR "level-up.wav",
         };
 
         for (TtsSoundEffect effect = TtsSoundEffect_None + 1; effect < TtsSoundEffect_Count; effect++) {
             TtsReadResult soundFile = {0};
-            char *path = paths[effect];
+            char *path = effectsPaths[effect];
             soundFile = platformReadEntireFile(path, &tetris->arena);
-            ok = soundFile.size > 0;
-
-            if (ok) {
-                tetris->soundEffects[effect] = ttsWavParseFile(soundFile);
-            }
+            tetris->soundEffects[effect] = ttsWavParseFile(soundFile);
         }
     }
 
@@ -612,18 +616,11 @@ static void ttsDrawCell(
     );
 }
 
-static void ttsStartMusic(TtsTetris *tetris) {
-    platformPlaySound(tetris, tetris->music, TtsSoundType_Music);
-}
+static void ttsStartMusic(TtsTetris *tetris, TtsMusic music) {
+    TTS_ASSERT(music > TtsMusic_None);
+    TTS_ASSERT(music < TtsMusic_Count);
 
-static void ttsStopMusic(TtsTetris *tetris) {
-    platformPauseSound(tetris, TtsSoundType_Music);
-    tetris->musicOff= true;
-}
-
-static void ttsResumeMusic(TtsTetris *tetris) {
-    platformResumeSound(tetris, TtsSoundType_Music);
-    tetris->musicOff= false;
+    platformPlaySound(tetris, tetris->musics[music], TtsSoundType_Music);
 }
 
 static TtsRotation ttsGetRotation(TtsRotationType rotationType) {
@@ -962,7 +959,20 @@ static void ttsMoveVertically(TtsTetris *tetris) {
         }
 
         tetris->score += scoreIncrement;
+		uint32_t previousLevel = ttsGetCurrentLevel(tetris);
         tetris->clearedLines += tetris->clearedRowsCount;
+		uint32_t currentLevel = ttsGetCurrentLevel(tetris);
+
+        if (currentLevel > previousLevel) {
+			ttsPlaySoundEffect(tetris, TtsSoundEffect_LevelUp);
+		}
+
+        if ((tetris->clearedLines / TTS_LINES_PER_LEVEL) + 1 >= TTS_LEVEL_COUNT_PLUS_ONE) {
+            tetris->won = true;
+            //platformPauseSound(tetris, TtsSoundType_Music);
+
+            ttsStartMusic(tetris, TtsMusic_Celebrate);
+        }
 
         spawnTetramino(tetris);
     }
@@ -1065,7 +1075,7 @@ static bool ttsIsFalling(TtsTetris *tetris) {
 }
 
 static bool shouldUpdate(TtsTetris *tetris) {
-    return !tetris->wasResizing && !tetris->menuOpen && !tetris->paused && tetris->clearedRowsCount == 0 && !tetris->gameOver;
+    return !tetris->wasResizing && !tetris->menuOpen && !tetris->paused && tetris->clearedRowsCount == 0 && !tetris->gameOver && !tetris->won;
 }
 
 static void ttsCloseMenu(TtsTetris *tetris) {
@@ -1084,18 +1094,19 @@ static void ttsNewGame(TtsTetris *tetris) {
     tetris->secondsToFadeEnd = 0;
     tetris->clearedRowsCount = 0;
     tetris->gameOver = false;
-    tetris->gameOverAnimationRows = 0;
-    tetris->secondsToNextGameOverRow = 0.0f;
+    tetris->won = false;
+    tetris->gameOverAnimationSteps = 0;
+    tetris->secondsToNextGameOverAnimation = 0.0f;
     tetris->secondsToOpenMenu = 0.0f;
 
     if (!tetris->musicOff) {
-        ttsStartMusic(tetris);
+        ttsStartMusic(tetris, TtsMusic_Theme);
     }
     ttsCloseMenu(tetris);
 }
 
 void ttsResumeGame(TtsTetris *tetris) {
-    if (tetris->gameOver) {
+    if (tetris->gameOver || tetris->won) {
         ttsNewGame(tetris);
     } else {ttsCloseMenu(tetris);}
 }
@@ -1115,7 +1126,7 @@ static float ttsGetVelocityMultiplier(TtsTetris *tetris) {
 static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
     if (tetris->frame == 0) {
         spawnTetramino(tetris);
-        ttsStartMusic(tetris);
+        ttsStartMusic(tetris, TtsMusic_Theme);
     }
 
     if (!tetris->menuOpen && ttsControlPressed(tetris, TtsControlType_P)) {
@@ -1225,31 +1236,30 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
 
     // Player
     {
-        float velocityMultiplier = ttsGetVelocityMultiplier(tetris);
-        float verticalVelocity = 3.0f * velocityMultiplier;
-
-        if (ttsControlPressed(tetris, TtsControlType_Space)) {
-            tetris->isHardDropping = true;
-            tetris->isSoftDropping = false;
-            ttsPlaySoundEffect(tetris, TtsSoundEffect_Click);
-        }
-
-        if (!tetris->isHardDropping && ttsControlPressed(tetris, TtsControlType_Down)) {
-            tetris->isSoftDropping = true;
-        }
-
-        if (!ttsControlDown(tetris, TtsControlType_Down)) {
-            tetris->isSoftDropping = false;
-        }
-
-        if (tetris->isHardDropping) {
-            verticalVelocity = 200.0f;
-        } else if (tetris->isSoftDropping) {
-            verticalVelocity *= 10.0f;
-        }
-        float horizontalVelocity = 8.0f;
-
         if (shouldUpdate(tetris)) {
+            float velocityMultiplier = ttsGetVelocityMultiplier(tetris);
+            float verticalVelocity = 3.0f * velocityMultiplier;
+
+            if (ttsControlPressed(tetris, TtsControlType_Space)) {
+                tetris->isHardDropping = true;
+                tetris->isSoftDropping = false;
+                ttsPlaySoundEffect(tetris, TtsSoundEffect_Click);
+            }
+
+            if (!tetris->isHardDropping && ttsControlPressed(tetris, TtsControlType_Down)) {
+                tetris->isSoftDropping = true;
+            }
+
+            if (!ttsControlDown(tetris, TtsControlType_Down)) {
+                tetris->isSoftDropping = false;
+            }
+
+            if (tetris->isHardDropping) {
+                verticalVelocity = 200.0f;
+            } else if (tetris->isSoftDropping) {
+                verticalVelocity *= 10.0f;
+            }
+            float horizontalVelocity = 8.0f;
             tetris->playerYProgression += verticalVelocity * secondsElapsed;
 
             // bool leftPressed = ttsControlPressed(tetris, TtsControlType_Left);
@@ -1411,36 +1421,24 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
     }
 
     if (tetris->gameOver) {
-        if (tetris->secondsToOpenMenu > 0.0f) {
-            tetris->secondsToOpenMenu -= secondsElapsed;
-        }
-
-        if (tetris->gameOverAnimationRows < TTS_ROW_COUNT) {
+        if (tetris->gameOverAnimationSteps < TTS_ROW_COUNT) {
             float secondsForGameOverRow = 0.1f;
-            if (tetris->secondsToNextGameOverRow <= 0.0f) {
-                tetris->gameOverAnimationRows++;
-                tetris->secondsToNextGameOverRow += secondsForGameOverRow;
+            if (tetris->secondsToNextGameOverAnimation <= 0.0f) {
+                tetris->gameOverAnimationSteps++;
+                tetris->secondsToNextGameOverAnimation += secondsForGameOverRow;
                 TtsSoundEffect soundEffect  = TtsSoundEffect_Click;
 
-                if (tetris->gameOverAnimationRows >= TTS_ROW_COUNT - 1){
+                if (tetris->gameOverAnimationSteps >= TTS_ROW_COUNT - 1){
                     soundEffect = TtsSoundEffect_GameOver;
                     tetris->secondsToOpenMenu = 1.5f;
                 }
 
                 ttsPlaySoundEffect(tetris, soundEffect);
             }
-            tetris->secondsToNextGameOverRow -= secondsElapsed;
+            tetris->secondsToNextGameOverAnimation -= secondsElapsed;
         }
 
-        if (tetris->secondsToOpenMenu < 0.0f) {
-            tetris->menuOpen = true;
-            tetris->secondsToOpenMenu = 0.0f;
-            if (!tetris->musicOff) {
-                ttsResumeMusic(tetris);
-            }
-        }
-
-        for (uint32_t gameOverRowIndex = 0; gameOverRowIndex <tetris->gameOverAnimationRows; gameOverRowIndex++) {
+        for (uint32_t gameOverRowIndex = 0; gameOverRowIndex <tetris->gameOverAnimationSteps; gameOverRowIndex++) {
             for (uint32_t column = 0; column < TTS_COLUMN_COUNT; column++) {
                 uint32_t row = TTS_ROW_COUNT - 1 - gameOverRowIndex;
                 ttsDrawCell(
@@ -1453,6 +1451,45 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
                     gridY
                 );
             }
+        }
+    }
+
+    if (tetris->won) {
+        uint32_t cellCount = TTS_ROW_COUNT * TTS_COLUMN_COUNT;
+
+        float secondsForGameOverStep = 0.05f;
+        if (tetris->secondsToNextGameOverAnimation <= 0.0f) {
+            if (tetris->gameOverAnimationSteps < cellCount) {
+                tetris->gameOverAnimationSteps++;
+                if (tetris->gameOverAnimationSteps >= cellCount){
+                    tetris->secondsToOpenMenu = 1.5f;
+                    platformPauseSound(tetris, TtsSoundType_Music);
+                    ttsPlaySoundEffect(tetris, TtsSoundEffect_Yay);
+                }
+            }
+            tetris->secondsToNextGameOverAnimation += secondsForGameOverStep;
+
+            for (uint32_t gameOverCellIndex = 0; gameOverCellIndex <tetris->gameOverAnimationSteps; gameOverCellIndex++) {
+                TtsTetraminoType type = getNextType(tetris);
+
+                uint32_t gameOverRowIndex = gameOverCellIndex / TTS_COLUMN_COUNT;
+                uint32_t gameOverColumnIndex = gameOverCellIndex % TTS_COLUMN_COUNT;
+
+                tetris->grid[TTS_ROW_COUNT - gameOverRowIndex - 1][gameOverColumnIndex] = type;
+            }
+        }
+        tetris->secondsToNextGameOverAnimation -= secondsElapsed;
+    }
+
+    if (tetris->secondsToOpenMenu > 0.0f) {
+        tetris->secondsToOpenMenu -= secondsElapsed;
+    }
+
+    if (tetris->secondsToOpenMenu < 0.0f) {
+        tetris->menuOpen = true;
+        tetris->secondsToOpenMenu = 0.0f;
+        if (!tetris->musicOff) {
+            platformResumeSound(tetris, TtsSoundType_Music);
         }
     }
 
@@ -1675,9 +1712,11 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
                     case TtsButtonType_Music: {
                         if (tetris->controls[TtsControlType_MouseLeft].releaseCount % 2 != 0) {
                             if (tetris->musicOff) {
-                                ttsResumeMusic(tetris);
+                                platformResumeSound(tetris, TtsSoundType_Music);
+                                tetris->musicOff= false;
                             } else {
-                                ttsStopMusic(tetris);
+                                platformPauseSound(tetris, TtsSoundType_Music);
+                                tetris->musicOff= true;
                             }
                         }
                     } break;
