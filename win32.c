@@ -130,6 +130,7 @@ static int win32MapControlToVirtualKey(TtsControlType controlType) {
         [TtsControlType_Space] = VK_SPACE,
         [TtsControlType_Enter] = VK_RETURN,
         [TtsControlType_C] = 'C',
+        [TtsControlType_L] = 'L',
         [TtsControlType_P] = 'P',
         [TtsControlType_MouseLeft] = VK_LBUTTON,
         [TtsControlType_MouseRight] = VK_RBUTTON,

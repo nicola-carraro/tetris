@@ -19,6 +19,10 @@
 #define TTS_FADE_SECONDS 0.5f
 #define TTS_DATA_DIR "../data/"
 #define TTS_ALLOCATION_SIZE (512 * 1024 * 1024)
+#define TTS_LEVEL_COUNT_PLUS_ONE 16
+#define TTS_LINES_PER_LEVEL 10
+#define TTS_ENABLE_CHEAT
+
 
 typedef struct TtsPlatform TtsPlatform;
 
@@ -78,6 +82,7 @@ typedef enum {
     TtsControlType_Enter,
     TtsControlType_C,
     TtsControlType_P,
+	TtsControlType_L,
     TtsControlType_MouseLeft,
     TtsControlType_MouseRight,
     TtsControlType_MouseCenter,
