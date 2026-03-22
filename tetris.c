@@ -199,7 +199,7 @@ static bool ttsInit(TtsTetris *tetris, uint64_t platformSize) {
             [TtsSoundEffect_Success] = TTS_DATA_DIR "success.wav",
             [TtsSoundEffect_Pluck] = TTS_DATA_DIR "pluck.wav",
             [TtsSoundEffect_Yay] = TTS_DATA_DIR "yay.wav",
-			[TtsSoundEffect_LevelUp] = TTS_DATA_DIR "level-up.wav",
+            [TtsSoundEffect_LevelUp] = TTS_DATA_DIR "level-up.wav",
         };
 
         for (TtsSoundEffect effect = TtsSoundEffect_None + 1; effect < TtsSoundEffect_Count; effect++) {
@@ -959,13 +959,13 @@ static void ttsMoveVertically(TtsTetris *tetris) {
         }
 
         tetris->score += scoreIncrement;
-		uint32_t previousLevel = ttsGetCurrentLevel(tetris);
+        uint32_t previousLevel = ttsGetCurrentLevel(tetris);
         tetris->clearedLines += tetris->clearedRowsCount;
-		uint32_t currentLevel = ttsGetCurrentLevel(tetris);
+        uint32_t currentLevel = ttsGetCurrentLevel(tetris);
 
         if (currentLevel > previousLevel) {
-			ttsPlaySoundEffect(tetris, TtsSoundEffect_LevelUp);
-		}
+            ttsPlaySoundEffect(tetris, TtsSoundEffect_LevelUp);
+        }
 
         if ((tetris->clearedLines / TTS_LINES_PER_LEVEL) + 1 >= TTS_LEVEL_COUNT_PLUS_ONE) {
             tetris->won = true;
@@ -1121,6 +1121,40 @@ static float ttsGetVelocityMultiplier(TtsTetris *tetris) {
     }
 
     return result;
+}
+
+void ttsDrawNumberLabel(TtsTetris *tetris, float x, float y, float width, float height, float margin, TtsString label, TtsColor backgroundColor, TtsColor fontColor, uint32_t number) {
+    {
+        ttsDrawCellLikeQuad(
+            tetris,
+            x, y,
+            width, height,
+            5.0f,
+            backgroundColor
+        );
+
+        float labelX = x + margin;
+
+        ttsDrawString(
+            tetris,
+            label,
+            labelX,
+            y,
+            1.0f,
+            fontColor
+        );
+
+        char buffer[256] = {0};
+
+        ttsDrawString(
+            tetris,
+            ttsFormatNumber(number, buffer, TTS_ARRAYCOUNT(buffer)),
+            labelX,
+            y + tetris->atlas.lineHeightInPixels,
+            1.0f,
+            fontColor
+        );
+    }
 }
 
 static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
@@ -1501,49 +1535,15 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
             float rightBoxX = gridX + gridWidth + (gridMargin * 2.0f);
             float rightLabelX = gridX + gridWidth + (gridMargin * 3.0f);
             float leftBoxX = gridX - (gridMargin * 2.0f) - boxWidth;
-            float leftLabelX = leftBoxX + gridMargin;
             float upperBoxY = gridY;
             float lowerBoxY = gridY + gridHeight - boxHeight;
 
-            char buffer[256] = {0};
-
-            {
-                ttsDrawCellLikeQuad(
-                    tetris,
-                    leftBoxX, upperBoxY,
-                    boxWidth, boxHeight,
-                    5.0f,
-                    boxColor
-                );
-
-                ttsDrawString(
-                    tetris,
-                    TTS_MAKE_STRING("Lines:"),
-                    leftLabelX,
-                    upperBoxY,
-                    1.0f,
-                    fontColor
-                );
-
-                ttsDrawString(
-                    tetris,
-                    ttsFormatNumber(tetris->clearedLines, buffer, TTS_ARRAYCOUNT(buffer)),
-                    leftLabelX,
-                    upperBoxY + tetris->atlas.lineHeightInPixels,
-                    1.0f,
-                    fontColor
-                );
-            }
-
-            {
-                ttsDrawCellLikeQuad(
-                    tetris,
-                    leftBoxX, lowerBoxY,
-                    boxWidth, boxHeight,
-                    5.0f,
-                    boxColor
-                );
-            }
+            ttsDrawNumberLabel(
+                tetris, leftBoxX, upperBoxY, boxWidth, boxHeight, gridMargin,
+                TTS_MAKE_STRING("Lines:"),
+                boxColor, fontColor,
+                tetris->clearedLines
+            );
 
             {
                 float boxMargin = 5.0f;
@@ -1576,61 +1576,19 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
                 }
             }
 
-            {
-                ttsDrawCellLikeQuad(
-                    tetris,
-                    leftBoxX, lowerBoxY,
-                    boxWidth, boxHeight,
-                    5.0f,
-                    boxColor
-                );
-                ttsDrawString(
-                    tetris,
-                    TTS_MAKE_STRING("Level:"),
-                    leftLabelX,
-                    lowerBoxY,
-                    1.0f,
-                    fontColor
-                );
+            ttsDrawNumberLabel(
+                tetris, leftBoxX, lowerBoxY, boxWidth, boxHeight, gridMargin,
+                TTS_MAKE_STRING("Level:"),
+                boxColor, fontColor,
+                ttsGetCurrentLevel(tetris)
+            );
 
-                uint32_t level = ttsGetCurrentLevel(tetris);
-                ttsDrawString(
-                    tetris,
-                    ttsFormatNumber(level, buffer, TTS_ARRAYCOUNT(buffer)),
-                    leftLabelX,
-                    lowerBoxY + tetris->atlas.lineHeightInPixels,
-                    1.0f,
-                    fontColor
-                );
-            }
-
-            {
-                ttsDrawCellLikeQuad(
-                    tetris,
-                    rightBoxX, lowerBoxY,
-                    boxWidth, boxHeight,
-                    5.0f,
-                    boxColor
-                ) ;
-
-                ttsDrawString(
-                    tetris,
-                    TTS_MAKE_STRING("Score:"),
-                    rightLabelX,
-                    lowerBoxY,
-                    1.0f,
-                    fontColor
-                );
-
-                ttsDrawString(
-                    tetris,
-                    ttsFormatNumber(tetris->score, buffer, TTS_ARRAYCOUNT(buffer)),
-                    rightLabelX,
-                    lowerBoxY + tetris->atlas.lineHeightInPixels,
-                    1.0f,
-                    fontColor
-                );
-            }
+            ttsDrawNumberLabel(
+                tetris, rightBoxX, lowerBoxY, boxWidth, boxHeight, gridMargin,
+                TTS_MAKE_STRING("Score:"),
+                boxColor, fontColor,
+                tetris->score
+            );
         } else {
             ttsDrawNextTetramino(
                 tetris,
