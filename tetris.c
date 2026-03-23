@@ -1656,6 +1656,10 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
                     tetris->pressedButton = TtsButtonType_None;
                 }
 
+                if (mouseReleased) {
+                    ttsPlaySoundEffect(tetris, TtsSoundEffect_Click);
+                }
+
                 switch (buttonType) {
                     case TtsButtonType_Resume: {
                         if (mouseReleased) {
