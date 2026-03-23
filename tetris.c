@@ -1718,13 +1718,15 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
                 lineHeight = maxLineHeight;
             }
 
+            TtsColor labelColor = mouseOverButton ? ttsMakeColor(100.0f, 100.0f, 100.0f, 255.0f) : fontColor;
+
             ttsDrawString(
                 tetris,
                 label,
                 buttonLeft + (buttonWidth / 20.0f),
                 buttonTop + ((buttonHeight - lineHeight) / 2.0f),
                 fontScale,
-                fontColor
+                labelColor
             );
             buttonTop += (buttonHeight + buttonsGap);
         }
