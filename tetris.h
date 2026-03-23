@@ -274,6 +274,8 @@ typedef struct {
     TtsControl controls[TtsControlType_Count];
     int32_t mouseX;
     int32_t mouseY;
+	int32_t previousMouseX;
+	int32_t previousMouseY;
     TtsColor backgroundColor;
     float playerXInCells;
     float playerYInCells;
@@ -304,5 +306,4 @@ typedef struct {
 	float secondsToNextGameOverAnimation;
 	float secondsToOpenMenu;
 	bool won;
-	TtsButtonType hotButton;
 } TtsTetris;

@@ -1083,12 +1083,11 @@ static void ttsCloseMenu(TtsTetris *tetris) {
     tetris->paused = false;
     tetris->pressedButton = TtsButtonType_None;
     tetris->hoveredButton = TtsButtonType_None;
-    tetris->hotButton = TtsButtonType_None;
 }
 
 static void ttsOpenMenu(TtsTetris *tetris) {
     tetris->menuOpen = true;
-    tetris->hotButton = TtsButtonType_None + 1;
+    tetris->hoveredButton = TtsButtonType_None + 1;
 }
 
 static void ttsNewGame(TtsTetris *tetris) {
@@ -1161,6 +1160,18 @@ void ttsDrawNumberLabel(TtsTetris *tetris, float x, float y, float width, float 
             fontColor
         );
     }
+}
+
+bool ttsPointInQuad(float x, float y, float top, float left, float width, float height) {
+    float right = left + width;
+    float bottom = top + height;
+
+    bool result = x >= left
+    && x <= right
+    && y >= top
+    && y <= bottom;
+
+    return result;
 }
 
 static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
@@ -1630,9 +1641,19 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
         float buttonTop = menuTop + buttonMargin;
 
         bool mouseDown = ttsControlDown(tetris, TtsControlType_MouseLeft);
+        // bool enterDown =ttsControlDown(tetris, TtsControlType_Enter);
+        bool enterPressed = ttsControlPressed(tetris, TtsControlType_Enter);
+        bool mousePressed = ttsControlPressed(tetris, TtsControlType_MouseLeft);
         bool mouseReleased = ttsControlReleased(tetris, TtsControlType_MouseLeft);
+        //bool enterReleased = ttsControlReleased(tetris, TtsControlType_Enter);
 
-        bool hasHoveredButton = false;
+        if (tetris->hoveredButton > TtsButtonType_None + 1 && ttsControlPressed(tetris, TtsControlType_Up)) {
+            tetris->hoveredButton--;
+        }
+
+        if (tetris->hoveredButton < TtsButtonType_Count - 1 && ttsControlPressed(tetris, TtsControlType_Down)) {
+            tetris->hoveredButton++;
+        }
 
         for (TtsButtonType buttonType = TtsButtonType_None + 1; buttonType < TtsButtonType_Count; buttonType++) {
             TtsString label = ttsGetButtonLabel(tetris, buttonType);
@@ -1641,75 +1662,63 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
 
             float mouseX = (float) tetris->mouseX;
             float mouseY = (float) tetris->mouseY;
-            float buttonRight =  buttonLeft + buttonWidth;
-            float buttonBottom = buttonTop + buttonHeight;
+            float previousMouseX = (float) tetris->previousMouseX;
+            float previousMouseY = (float) tetris->previousMouseY;
 
-            bool mouseOverButton = mouseX >= buttonLeft
-            && mouseX <= buttonRight
-            && mouseY >= buttonTop
-            && mouseY <= buttonBottom;
+            bool isMouseOver = ttsPointInQuad(mouseX, mouseY, buttonTop, buttonLeft, buttonWidth, buttonHeight);
+            bool wasMouseOver = ttsPointInQuad(previousMouseX, previousMouseY, buttonTop, buttonLeft, buttonWidth, buttonHeight);
 
-            if (mouseOverButton) {
+            bool mouseEntered = isMouseOver && !wasMouseOver;
+
+            if (mouseEntered) {
                 tetris->hoveredButton = buttonType;
-                hasHoveredButton = true;
             }
 
-            if (mouseOverButton && mouseDown) {
+            if (tetris->hoveredButton == buttonType && mousePressed) {
                 tetris->pressedButton = buttonType;
             }
 
             float buttonPadding = 0.0f;
 
             if (tetris->pressedButton == buttonType) {
-                float relaseThreshold = 5.0f;
-                if (
-                    mouseX <= buttonLeft - relaseThreshold || mouseX >= buttonRight + relaseThreshold
-                    || mouseY <= buttonTop - relaseThreshold || mouseY >= buttonBottom + relaseThreshold
-                ) {
+                float releaseThreshold = 5.0f;
+                if (!ttsPointInQuad(mouseX, mouseY, buttonTop - releaseThreshold, buttonLeft - releaseThreshold, buttonWidth + (2.0f * releaseThreshold), buttonHeight * (2.0f * releaseThreshold))) {
                     tetris->pressedButton = TtsButtonType_None;
-                }
-
-                if (mouseReleased) {
-                    ttsPlaySoundEffect(tetris, TtsSoundEffect_Click);
-                }
-
-                switch (buttonType) {
-                    case TtsButtonType_Resume: {
-                        if (mouseReleased) {
-                            ttsResumeGame(tetris);
-                        };
-                    } break;
-                    case TtsButtonType_New: {
-                        if (mouseReleased) {
-                            ttsNewGame(tetris);
-                        };
-                    } break;
-                    case TtsButtonType_Music: {
-                        if (tetris->controls[TtsControlType_MouseLeft].releaseCount % 2 != 0) {
-                            if (tetris->musicOff) {
-                                platformResumeSound(tetris, TtsSoundType_Music);
-                                tetris->musicOff= false;
-                            } else {
-                                platformPauseSound(tetris, TtsSoundType_Music);
-                                tetris->musicOff= true;
-                            }
-                        }
-                    } break;
-                    case TtsButtonType_Sound: {
-                        if (tetris->controls[TtsControlType_MouseLeft].releaseCount % 2 != 0) {
-                            tetris->effectsOff = !tetris->effectsOff;
-                        }
-                    } break;
-                    case TtsButtonType_Quit: {
-                        if (ttsControlReleased(tetris, TtsControlType_MouseLeft)) {
-                            tetris->shouldQuit = true;
-                        }
-                    } break;
                 }
 
                 buttonPadding = 3.0f;
             } else {
                 buttonPadding = 5.0f;
+            }
+
+            bool doAction = (tetris->pressedButton == buttonType && mouseReleased) || (tetris->hoveredButton == buttonType && enterPressed);
+
+            if (doAction) {
+                ttsPlaySoundEffect(tetris, TtsSoundEffect_Click);
+
+                switch (buttonType) {
+                    case TtsButtonType_Resume: {
+                        ttsResumeGame(tetris);
+                    } break;
+                    case TtsButtonType_New: {
+                        ttsNewGame(tetris);
+                    } break;
+                    case TtsButtonType_Music: {
+                        if (tetris->musicOff) {
+                            platformResumeSound(tetris, TtsSoundType_Music);
+                            tetris->musicOff= false;
+                        } else {
+                            platformPauseSound(tetris, TtsSoundType_Music);
+                            tetris->musicOff= true;
+                        }
+                    } break;
+                    case TtsButtonType_Sound: {
+                        tetris->effectsOff = !tetris->effectsOff;
+                    } break;
+                    case TtsButtonType_Quit: {
+                        tetris->shouldQuit = true;
+                    } break;
+                }
             }
 
             ttsDrawCellLikeQuad(
@@ -1733,7 +1742,7 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
 
             TtsColor labelColor = fontColor;
 
-            if (mouseOverButton || !tetris->hoveredButton && tetris->hotButton == buttonType) {
+            if (tetris->hoveredButton == buttonType) {
                 labelColor = ttsMakeColor(100.0f, 100.0f, 100.0f, 255.0f);
             }
 
@@ -1747,9 +1756,6 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
             );
             buttonTop += (buttonHeight + buttonsGap);
         }
-        if (!hasHoveredButton) {
-            tetris->hoveredButton = TtsButtonType_None;
-        }
 
         if (!mouseDown) {
             tetris->pressedButton = TtsButtonType_None;
@@ -1761,6 +1767,8 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
         tetris->controls[controlIndex].releaseCount = 0;
     }
     tetris->frame++;
+    tetris->previousMouseX = tetris->mouseX;
+    tetris->previousMouseY = tetris->mouseY;
 }
 
 static bool ttsWavIsValid(Wav wav) {
