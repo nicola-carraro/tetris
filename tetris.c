@@ -1083,6 +1083,12 @@ static void ttsCloseMenu(TtsTetris *tetris) {
     tetris->paused = false;
     tetris->pressedButton = TtsButtonType_None;
     tetris->hoveredButton = TtsButtonType_None;
+    tetris->hotButton = TtsButtonType_None;
+}
+
+static void ttsOpenMenu(TtsTetris *tetris) {
+    tetris->menuOpen = true;
+    tetris->hotButton = TtsButtonType_None + 1;
 }
 
 static void ttsNewGame(TtsTetris *tetris) {
@@ -1171,7 +1177,7 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
         if (tetris->menuOpen) {
             ttsResumeGame(tetris);
         } else {
-            tetris->menuOpen = true;
+            ttsOpenMenu(tetris);
         }
     }
 
@@ -1520,7 +1526,7 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
     }
 
     if (tetris->secondsToOpenMenu < 0.0f) {
-        tetris->menuOpen = true;
+        ttsOpenMenu(tetris);
         tetris->secondsToOpenMenu = 0.0f;
         if (!tetris->musicOff) {
             platformResumeSound(tetris, TtsSoundType_Music);
@@ -1626,6 +1632,8 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
         bool mouseDown = ttsControlDown(tetris, TtsControlType_MouseLeft);
         bool mouseReleased = ttsControlReleased(tetris, TtsControlType_MouseLeft);
 
+        bool hasHoveredButton = false;
+
         for (TtsButtonType buttonType = TtsButtonType_None + 1; buttonType < TtsButtonType_Count; buttonType++) {
             TtsString label = ttsGetButtonLabel(tetris, buttonType);
             TtsTetraminoType tetraminoType = ttsGetButtonTetraminoType(buttonType);
@@ -1640,6 +1648,11 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
             && mouseX <= buttonRight
             && mouseY >= buttonTop
             && mouseY <= buttonBottom;
+
+            if (mouseOverButton) {
+                tetris->hoveredButton = buttonType;
+                hasHoveredButton = true;
+            }
 
             if (mouseOverButton && mouseDown) {
                 tetris->pressedButton = buttonType;
@@ -1718,7 +1731,11 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
                 lineHeight = maxLineHeight;
             }
 
-            TtsColor labelColor = mouseOverButton ? ttsMakeColor(100.0f, 100.0f, 100.0f, 255.0f) : fontColor;
+            TtsColor labelColor = fontColor;
+
+            if (mouseOverButton || !tetris->hoveredButton && tetris->hotButton == buttonType) {
+                labelColor = ttsMakeColor(100.0f, 100.0f, 100.0f, 255.0f);
+            }
 
             ttsDrawString(
                 tetris,
@@ -1729,6 +1746,9 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
                 labelColor
             );
             buttonTop += (buttonHeight + buttonsGap);
+        }
+        if (!hasHoveredButton) {
+            tetris->hoveredButton = TtsButtonType_None;
         }
 
         if (!mouseDown) {

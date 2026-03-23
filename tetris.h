@@ -304,4 +304,5 @@ typedef struct {
 	float secondsToNextGameOverAnimation;
 	float secondsToOpenMenu;
 	bool won;
+	TtsButtonType hotButton;
 } TtsTetris;
