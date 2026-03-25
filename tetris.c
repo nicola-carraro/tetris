@@ -1133,28 +1133,33 @@ static float ttsGetVelocityMultiplier(TtsTetris *tetris) {
     return result;
 }
 
+void ttsDrawLabel(TtsTetris *tetris, float x, float y, float width, float height, float margin, TtsString label, TtsColor backgroundColor, TtsColor fontColor) {
+    ttsDrawCellLikeQuad(
+        tetris,
+        x, y,
+        width, height,
+        5.0f,
+        backgroundColor
+    );
+
+    float labelX = x + margin;
+
+    ttsDrawString(
+        tetris,
+        label,
+        labelX,
+        y,
+        1.0f,
+        fontColor
+    );
+}
+
 void ttsDrawNumberLabel(TtsTetris *tetris, float x, float y, float width, float height, float margin, TtsString label, TtsColor backgroundColor, TtsColor fontColor, uint32_t number) {
     {
-        ttsDrawCellLikeQuad(
-            tetris,
-            x, y,
-            width, height,
-            5.0f,
-            backgroundColor
-        );
+        ttsDrawLabel(tetris, x,  y,  width,  height,  margin,  label,  backgroundColor,  fontColor);
+        char buffer[256] = {0};
 
         float labelX = x + margin;
-
-        ttsDrawString(
-            tetris,
-            label,
-            labelX,
-            y,
-            1.0f,
-            fontColor
-        );
-
-        char buffer[256] = {0};
 
         ttsDrawString(
             tetris,
@@ -1164,6 +1169,29 @@ void ttsDrawNumberLabel(TtsTetris *tetris, float x, float y, float width, float 
             1.0f,
             fontColor
         );
+    }
+}
+
+void ttsDrawNextTetraminoLabel(TtsTetris *tetris, float x, float y, float width, float height, float margin,  TtsColor backgroundColor, TtsColor fontColor, float cellSideInPixels) {
+    {
+        float boxMargin = 5.0f;
+
+        TtsString next = TTS_MAKE_STRING("Next:");
+
+        ttsDrawLabel(
+            tetris, x, y, width, height, margin,
+            next,
+            backgroundColor, fontColor
+        );
+
+        {
+            float strWidth = ttsGetStringWidthInPixels(tetris->atlas, next);
+            float tetraminoX = x + margin + strWidth;
+            float tetraminoY = y + boxMargin;
+            float tetraminoWidth = width - (boxMargin * 2.0f) - margin - strWidth;
+            float tetraminoHeight = height - (boxMargin * 2.0f);
+            ttsDrawNextTetramino(tetris, tetraminoX , tetraminoY,  tetraminoWidth,  tetraminoHeight,  cellSideInPixels);
+        }
     }
 }
 
@@ -1555,7 +1583,6 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
     {
         if (drawLabels) {
             float rightBoxX = gridX + gridWidth + (gridMargin * 2.0f);
-            float rightLabelX = gridX + gridWidth + (gridMargin * 3.0f);
             float leftBoxX = gridX - (gridMargin * 2.0f) - boxWidth;
             float upperBoxY = gridY;
             float lowerBoxY = gridY + gridHeight - boxHeight;
@@ -1567,36 +1594,11 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
                 tetris->clearedLines
             );
 
-            {
-                float boxMargin = 5.0f;
-                ttsDrawCellLikeQuad(
-                    tetris,
-                    rightBoxX, upperBoxY,
-                    boxWidth, boxHeight,
-                    boxMargin,
-                    boxColor
-                );
-
-                TtsString next = TTS_MAKE_STRING("Next:");
-
-                ttsDrawString(
-                    tetris,
-                    next,
-                    rightLabelX,
-                    upperBoxY,
-                    1.0f,
-                    fontColor
-                );
-
-                {
-                    float strWidth = ttsGetStringWidthInPixels(tetris->atlas, next);
-                    float x = rightLabelX + strWidth;
-                    float y = upperBoxY + boxMargin;
-                    float width = boxWidth - (boxMargin * 2.0f) - gridMargin - strWidth;
-                    float height = boxHeight - (boxMargin * 2.0f);
-                    ttsDrawNextTetramino(tetris, x , y,  width,  height,  cellSideInPixels);
-                }
-            }
+            ttsDrawNextTetraminoLabel(
+                tetris, rightBoxX, upperBoxY, boxWidth, boxHeight, gridMargin,
+                boxColor,  fontColor,
+                cellSideInPixels
+            );
 
             ttsDrawNumberLabel(
                 tetris, leftBoxX, lowerBoxY, boxWidth, boxHeight, gridMargin,
