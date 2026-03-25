@@ -504,6 +504,12 @@ static void ttsDrawColorTrapezoid(
     );
 }
 
+static bool ttsHasWon(TtsTetris *tetris) {
+    bool result = (tetris->clearedLines / TTS_LINES_PER_LEVEL) + 1 >= TTS_LEVEL_COUNT_PLUS_ONE;
+
+    return result;
+}
+
 static void ttsDrawColorQuad(
     float x, float y,
     float width, float height,
@@ -892,6 +898,41 @@ static void ttsPlaySoundEffect(TtsTetris *tetris, TtsSoundEffect soundEffect) {
         platformPlaySound(tetris, tetris->soundEffects[soundEffect], TtsSoundType_Effect);
     }
 }
+static void ttsAddClearedRows(TtsTetris *tetris, uint32_t rowsCount) {
+    uint32_t scoreIncrement = 0;
+    switch (rowsCount) {
+        case 1: {
+            scoreIncrement = 100;
+        } break;
+        case 2: {
+            scoreIncrement = 300;
+        } break;
+        case 3: {
+            scoreIncrement = 500;
+        } break;
+        case 4: {
+            scoreIncrement = 800;
+        } break;
+    }
+
+    if (tetris->clearedRowsCount > 0) {
+        tetris->secondsToFadeEnd = TTS_FADE_SECONDS;
+        ttsPlaySoundEffect(tetris, TtsSoundEffect_Whoosh);
+    }
+
+    tetris->score += scoreIncrement;
+    uint32_t previousLevel = ttsGetCurrentLevel(tetris);
+    tetris->clearedLines += rowsCount;
+    uint32_t currentLevel = ttsGetCurrentLevel(tetris);
+
+    if (currentLevel > previousLevel) {
+        ttsPlaySoundEffect(tetris, TtsSoundEffect_LevelUp);
+    }
+
+    if (ttsHasWon(tetris)) {
+        ttsStartMusic(tetris, TtsMusic_Celebrate);
+    }
+}
 
 static void ttsMoveVertically(TtsTetris *tetris) {
     TtsTetramino playerCells = ttsGetPlayerCells(tetris);
@@ -937,42 +978,7 @@ static void ttsMoveVertically(TtsTetris *tetris) {
         }
         TTS_ASSERT(tetris->clearedRowsCount <= TTS_ARRAYCOUNT(tetris->clearedRows));
 
-        uint32_t scoreIncrement = 0;
-        switch (tetris->clearedRowsCount) {
-            case 1: {
-                scoreIncrement = 100;
-            } break;
-            case 2: {
-                scoreIncrement = 300;
-            } break;
-            case 3: {
-                scoreIncrement = 500;
-            } break;
-            case 4: {
-                scoreIncrement = 800;
-            } break;
-        }
-
-        if (tetris->clearedRowsCount > 0) {
-            tetris->secondsToFadeEnd = TTS_FADE_SECONDS;
-            ttsPlaySoundEffect(tetris, TtsSoundEffect_Whoosh);
-        }
-
-        tetris->score += scoreIncrement;
-        uint32_t previousLevel = ttsGetCurrentLevel(tetris);
-        tetris->clearedLines += tetris->clearedRowsCount;
-        uint32_t currentLevel = ttsGetCurrentLevel(tetris);
-
-        if (currentLevel > previousLevel) {
-            ttsPlaySoundEffect(tetris, TtsSoundEffect_LevelUp);
-        }
-
-        if ((tetris->clearedLines / TTS_LINES_PER_LEVEL) + 1 >= TTS_LEVEL_COUNT_PLUS_ONE) {
-            tetris->won = true;
-            //platformPauseSound(tetris, TtsSoundType_Music);
-
-            ttsStartMusic(tetris, TtsMusic_Celebrate);
-        }
+        ttsAddClearedRows(tetris, tetris->clearedRowsCount);
 
         spawnTetramino(tetris);
     }
@@ -1075,7 +1081,7 @@ static bool ttsIsFalling(TtsTetris *tetris) {
 }
 
 static bool shouldUpdate(TtsTetris *tetris) {
-    return !tetris->wasResizing && !tetris->menuOpen && !tetris->paused && tetris->clearedRowsCount == 0 && !tetris->gameOver && !tetris->won;
+    return !tetris->wasResizing && !tetris->menuOpen && !tetris->paused && tetris->clearedRowsCount == 0 && !tetris->gameOver && !ttsHasWon(tetris);
 }
 
 static void ttsCloseMenu(TtsTetris *tetris) {
@@ -1099,7 +1105,6 @@ static void ttsNewGame(TtsTetris *tetris) {
     tetris->secondsToFadeEnd = 0;
     tetris->clearedRowsCount = 0;
     tetris->gameOver = false;
-    tetris->won = false;
     tetris->gameOverAnimationSteps = 0;
     tetris->secondsToNextGameOverAnimation = 0.0f;
     tetris->secondsToOpenMenu = 0.0f;
@@ -1111,7 +1116,7 @@ static void ttsNewGame(TtsTetris *tetris) {
 }
 
 void ttsResumeGame(TtsTetris *tetris) {
-    if (tetris->gameOver || tetris->won) {
+    if (tetris->gameOver || ttsHasWon(tetris)) {
         ttsNewGame(tetris);
     } else {ttsCloseMenu(tetris);}
 }
@@ -1195,7 +1200,7 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
     #ifdef TTS_ENABLE_CHEAT
     uint32_t currentLevel =  ttsGetCurrentLevel(tetris);
     if (ttsControlPressed(tetris, TtsControlType_L) && currentLevel < TTS_LEVEL_COUNT_PLUS_ONE) {
-        tetris->clearedLines =  currentLevel * TTS_LINES_PER_LEVEL;
+        ttsAddClearedRows(tetris,  (currentLevel * TTS_LINES_PER_LEVEL) - tetris->clearedLines);
     }
     #endif
 
@@ -1505,7 +1510,7 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
         }
     }
 
-    if (tetris->won) {
+    if (ttsHasWon(tetris)) {
         uint32_t cellCount = TTS_ROW_COUNT * TTS_COLUMN_COUNT;
 
         float secondsForGameOverStep = 0.05f;

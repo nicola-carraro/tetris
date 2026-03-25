@@ -305,5 +305,4 @@ typedef struct {
 	uint16_t gameOverAnimationSteps;
 	float secondsToNextGameOverAnimation;
 	float secondsToOpenMenu;
-	bool won;
 } TtsTetris;
