@@ -1227,7 +1227,7 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
 
     #ifdef TTS_ENABLE_CHEAT
     uint32_t currentLevel =  ttsGetCurrentLevel(tetris);
-    if (ttsControlPressed(tetris, TtsControlType_L) && currentLevel < TTS_LEVEL_COUNT_PLUS_ONE) {
+    if (ttsControlPressed(tetris, TtsControlType_L) && !ttsHasWon(tetris)) {
         ttsAddClearedRows(tetris,  (currentLevel * TTS_LINES_PER_LEVEL) - tetris->clearedLines);
     }
     #endif
@@ -1648,11 +1648,9 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
         float buttonTop = menuTop + buttonMargin;
 
         bool mouseDown = ttsControlDown(tetris, TtsControlType_MouseLeft);
-        // bool enterDown =ttsControlDown(tetris, TtsControlType_Enter);
         bool enterPressed = ttsControlPressed(tetris, TtsControlType_Enter);
         bool mousePressed = ttsControlPressed(tetris, TtsControlType_MouseLeft);
         bool mouseReleased = ttsControlReleased(tetris, TtsControlType_MouseLeft);
-        //bool enterReleased = ttsControlReleased(tetris, TtsControlType_Enter);
 
         if (tetris->hoveredButton > TtsButtonType_None + 1 && ttsControlPressed(tetris, TtsControlType_Up)) {
             tetris->hoveredButton--;
