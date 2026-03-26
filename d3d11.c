@@ -6,7 +6,7 @@ static BOOL d3d11Compile(
     ID3DBlob **bytecode
 ) {
     UINT flags = D3DCOMPILE_WARNINGS_ARE_ERRORS | D3DCOMPILE_ENABLE_STRICTNESS;
-    #ifdef TTS_DEBUG
+    #ifdef BASE_DEBUG
     flags |= D3DCOMPILE_DEBUG;
     #endif
 
@@ -35,28 +35,26 @@ static BOOL d3d11Compile(
     return ok;
 }
 
-static BOOL d3d11Init(TtsTetris *tetris) {
-    TtsPlatform *win32 = tetris->platform;
-
+static BOOL d3d11Init(Platform *platform, PlatformTexture texture) {
     HRESULT hr = E_FAIL;
     BOOL ok = 0;
     UINT flags = 0;
 
-    #ifdef TTS_DEBUG
+    #ifdef TETRIS_DEBUG
     flags = D3D11_CREATE_DEVICE_DEBUG;
     {
         IDXGIInfoQueue *infoQueue;
         hr = DXGIGetDebugInterface1(0, &IID_IDXGIInfoQueue, (void**)&infoQueue);
-        TTS_ASSERT(SUCCEEDED(hr));
+        BASE_ASSERT(SUCCEEDED(hr));
 
         hr = IDXGIInfoQueue_SetBreakOnSeverity(infoQueue, DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, 1);
-        TTS_ASSERT(SUCCEEDED(hr));
+        BASE_ASSERT(SUCCEEDED(hr));
 
         hr = IDXGIInfoQueue_SetBreakOnSeverity(infoQueue, DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, 1);
-        TTS_ASSERT(SUCCEEDED(hr));
+        BASE_ASSERT(SUCCEEDED(hr));
 
         hr = IDXGIInfoQueue_Release(infoQueue);
-        TTS_ASSERT(SUCCEEDED(hr));
+        BASE_ASSERT(SUCCEEDED(hr));
     }
     #endif
 
@@ -70,25 +68,25 @@ static BOOL d3d11Init(TtsTetris *tetris) {
         &featureLevel,
         1,
         D3D11_SDK_VERSION,
-        &win32->device,
+        &platform->device,
         0,
-        &win32->deviceContext
+        &platform->deviceContext
     );
     ok = SUCCEEDED(hr);
 
-    #ifdef TTS_DEBUG
+    #ifdef TETRIS_DEBUG
     {
-        TTS_ASSERT(ok);
+        BASE_ASSERT(ok);
 
         ID3D11InfoQueue* infoQueue = 0;
-        hr = ID3D11Device_QueryInterface(win32->device, &IID_ID3D11InfoQueue, (void**)&infoQueue);
-        TTS_ASSERT(SUCCEEDED(hr));
+        hr = ID3D11Device_QueryInterface(platform->device, &IID_ID3D11InfoQueue, (void**)&infoQueue);
+        BASE_ASSERT(SUCCEEDED(hr));
 
         hr = ID3D11InfoQueue_SetBreakOnSeverity(infoQueue, D3D11_MESSAGE_SEVERITY_CORRUPTION, 1);
-        TTS_ASSERT(SUCCEEDED(hr));
+        BASE_ASSERT(SUCCEEDED(hr));
 
         hr = ID3D11InfoQueue_SetBreakOnSeverity(infoQueue, D3D11_MESSAGE_SEVERITY_ERROR, 1);
-        TTS_ASSERT(SUCCEEDED(hr));
+        BASE_ASSERT(SUCCEEDED(hr));
 
         ID3D11InfoQueue_Release(infoQueue);
     }
@@ -116,12 +114,12 @@ static BOOL d3d11Init(TtsTetris *tetris) {
             }
             hr = IDXGIFactory2_CreateSwapChainForHwnd(
                 factory,
-                (IUnknown *)win32->device,
-                win32->window,
+                (IUnknown *)platform->device,
+                platform->window,
                 &swapChainDesc,
                 0,
                 0,
-                &win32->swapChain
+                &platform->swapChain
             );
             ok = SUCCEEDED(hr);
 
@@ -129,7 +127,7 @@ static BOOL d3d11Init(TtsTetris *tetris) {
         }
     }
 
-    char source[] = TTS_QUOTE(
+    char source[] = BASE_QUOTE(
         cbuffer VsConstants : register(b0){
             float windowWidth;
             float windowHeight;
@@ -188,11 +186,11 @@ static BOOL d3d11Init(TtsTetris *tetris) {
 
         if (ok) {
             hr = ID3D11Device_CreateVertexShader(
-                win32->device,
+                platform->device,
                 shaderBytecode->lpVtbl->GetBufferPointer(shaderBytecode),
                 shaderBytecode->lpVtbl->GetBufferSize(shaderBytecode),
                 0,
-                &win32->vertexShader
+                &platform->vertexShader
             );
             ok = SUCCEEDED(hr);
 
@@ -224,12 +222,12 @@ static BOOL d3d11Init(TtsTetris *tetris) {
                 };
 
                 hr = ID3D11Device_CreateInputLayout(
-                    win32->device,
+                    platform->device,
                     inputDesc,
-                    TTS_ARRAYCOUNT(inputDesc),
+                    BASE_ARRAYCOUNT(inputDesc),
                     shaderBytecode->lpVtbl->GetBufferPointer(shaderBytecode),
                     shaderBytecode->lpVtbl->GetBufferSize(shaderBytecode),
-                    &win32->inputLayout
+                    &platform->inputLayout
                 );
                 ok = SUCCEEDED(hr);
             }
@@ -250,33 +248,24 @@ static BOOL d3d11Init(TtsTetris *tetris) {
 
         if (ok) {
             hr = ID3D11Device_CreatePixelShader(
-                win32->device,
+                platform->device,
                 shaderBytecode->lpVtbl->GetBufferPointer(shaderBytecode),
                 shaderBytecode->lpVtbl->GetBufferSize(shaderBytecode),
                 0,
-                &win32->pixelShader
+                &platform->pixelShader
             );
             ok = SUCCEEDED(hr);
             shaderBytecode->lpVtbl->Release(shaderBytecode);
         }
     }
 
-    TtsReadResult file = {0};
-
     if (ok) {
-        file = platformReadEntireFile(TTS_ATLAS_PATH, &tetris->arena);
-        ok = file.size > 0;
-    }
-
-    if (ok) {
-        TtsAtlas *atlas = (TtsAtlas *)file.data;
-        tetris->atlas = *atlas;
-        uint8_t *textureData = (uint8_t *)file.data + sizeof(TtsAtlas);
+        uint8_t *textureData = texture.data;
 
         D3D11_TEXTURE2D_DESC atlastTextureDesc = {0};
         {
-            atlastTextureDesc.Width = (UINT)atlas->width;
-            atlastTextureDesc.Height = (UINT)atlas->height;
+            atlastTextureDesc.Width = texture.width;
+            atlastTextureDesc.Height = texture.height;
             atlastTextureDesc.MipLevels = 1;
             atlastTextureDesc.ArraySize = 1;
             atlastTextureDesc.Format = DXGI_FORMAT_R8_UNORM;
@@ -288,15 +277,15 @@ static BOOL d3d11Init(TtsTetris *tetris) {
         D3D11_SUBRESOURCE_DATA atlasSRD = {0};
         {
             atlasSRD.pSysMem = textureData;
-            atlasSRD.SysMemPitch = (UINT)atlas->width * sizeof(uint8_t);
+            atlasSRD.SysMemPitch = texture.width * sizeof(uint8_t);
         }
 
         ID3D11Texture2D *atlasTexture;
-        hr = ID3D11Device_CreateTexture2D(win32->device, &atlastTextureDesc, &atlasSRD, &atlasTexture);
+        hr = ID3D11Device_CreateTexture2D(platform->device, &atlastTextureDesc, &atlasSRD, &atlasTexture);
         ok = SUCCEEDED(hr);
 
         if (ok) {
-            hr = ID3D11Device_CreateShaderResourceView(win32->device, (ID3D11Resource *) atlasTexture, 0, &win32->textureView);
+            hr = ID3D11Device_CreateShaderResourceView(platform->device, (ID3D11Resource *) atlasTexture, 0, &platform->textureView);
             ok = SUCCEEDED(hr);
         }
     }
@@ -317,7 +306,7 @@ static BOOL d3d11Init(TtsTetris *tetris) {
             samplerDesc.BorderColor[3] = 1.0f;
         }
 
-        ID3D11Device_CreateSamplerState(win32->device, &samplerDesc, &win32->samplerState);
+        ID3D11Device_CreateSamplerState(platform->device, &samplerDesc, &platform->samplerState);
 
         ok = SUCCEEDED(hr);
     }
@@ -337,24 +326,24 @@ static BOOL d3d11Init(TtsTetris *tetris) {
             blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
             blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
         }
-        hr = ID3D11Device_CreateBlendState(win32->device, &blendDesc, &win32->blendState);
+        hr = ID3D11Device_CreateBlendState(platform->device, &blendDesc, &platform->blendState);
         ok = SUCCEEDED(hr);
     }
 
     if (ok) {
         D3D11_BUFFER_DESC vertexBufferDesc = {0};
         {
-            vertexBufferDesc.ByteWidth = sizeof(win32->vertices.vertices);
+            vertexBufferDesc.ByteWidth = sizeof(platform->vertices.vertices);
             vertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
             vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
             vertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
         }
 
         hr = ID3D11Device_CreateBuffer(
-            win32->device,
+            platform->device,
             &vertexBufferDesc,
             0,
-            &win32->vertexBuffer
+            &platform->vertexBuffer
         );
         ok = SUCCEEDED(hr);
     }
@@ -362,17 +351,17 @@ static BOOL d3d11Init(TtsTetris *tetris) {
     if (ok) {
         D3D11_BUFFER_DESC constantBufferDesc = {0};
         {
-            constantBufferDesc.ByteWidth = sizeof(VsConstants);
+            constantBufferDesc.ByteWidth = sizeof(Win32VsConstants);
             constantBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
             constantBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
             constantBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
         }
 
         hr = ID3D11Device_CreateBuffer(
-            win32->device,
+            platform->device,
             &constantBufferDesc,
             0,
-            &win32->constantBuffer
+            &platform->constantBuffer
         );
         ok = SUCCEEDED(hr);
     }
@@ -384,26 +373,26 @@ static void d3d11AddVertex(
     float x, float y,
     float u, float v,
     float mask,
-    TtsColor color,
-    Vertices *vertices
+    float r, float g, float b, float a,
+    Win32Vertices *vertices
 ) {
-    if (vertices->vertexCount < TTS_ARRAYCOUNT(vertices->vertices)) {
-        Vertex vertex = {0};
+    if (vertices->vertexCount < BASE_ARRAYCOUNT(vertices->vertices)) {
+        Win32Vertex vertex = {0};
         {
             vertex.x = x;
             vertex.y = y;
             vertex.u = u;
             vertex.v = v;
             vertex.mask = mask;
-            vertex.r = color.r / 255.0f;
-            vertex.g = color.g / 255.0f;
-            vertex.b = color.b / 255.0f;
-            vertex.a = color.a / 255.0f;
+            vertex.r = r / 255.0f;
+            vertex.g = g / 255.0f;
+            vertex.b = b / 255.0f;
+            vertex.a = a / 255.0f;
         }
 
         vertices->vertices[vertices->vertexCount++] = vertex;
     } else {
-        TTS_ASSERT(!"Too many vertices");
+        BASE_ASSERT(!"Too many vertices");
     }
 }
 
@@ -415,12 +404,12 @@ static void d3d11DrawTriangle (
     float x2, float y2,
     float u2, float v2,
     float mask,
-    TtsColor color,
-    Vertices *vertices
+    float r, float g, float b, float a,
+    Win32Vertices *vertices
 ) {
-    d3d11AddVertex(x0, y0, u0, v0, mask, color, vertices);
-    d3d11AddVertex(x1, y1, u1, v1, mask, color, vertices);
-    d3d11AddVertex(x2, y2, u2, v2, mask, color, vertices);
+    d3d11AddVertex(x0, y0, u0, v0, mask, r, g, b, a, vertices);
+    d3d11AddVertex(x1, y1, u1, v1, mask, r, g, b, a, vertices);
+    d3d11AddVertex(x2, y2, u2, v2, mask, r, g, b, a, vertices);
 }
 
 static void d3d11DrawQuad(
@@ -429,8 +418,8 @@ static void d3d11DrawQuad(
     float u, float v,
     float uWidth, float vHeight,
     float mask,
-    TtsColor color,
-    Vertices *vertices
+    float r, float g, float b, float a,
+    Win32Vertices *vertices
 ) {
     float left = x;
     float top = y;
@@ -441,18 +430,18 @@ static void d3d11DrawQuad(
     float vTop = v;
     float vBottom = v + vHeight;
 
-    d3d11DrawTriangle(left, top, uLeft, vTop,  right, top, uRight, vTop, left, bottom, uLeft, vBottom, mask, color, vertices);
-    d3d11DrawTriangle(right, top, uRight, vTop, right, bottom, uRight, vBottom, left, bottom, uLeft, vBottom, mask, color, vertices);
+    d3d11DrawTriangle(left, top, uLeft, vTop,  right, top, uRight, vTop, left, bottom, uLeft, vBottom, mask, r, g, b, a, vertices);
+    d3d11DrawTriangle(right, top, uRight, vTop, right, bottom, uRight, vBottom, left, bottom, uLeft, vBottom, mask, r, g, b, a, vertices);
 }
 
 static void platformDrawTextureQuad(
+    Platform *platform,
     float x, float y,
     float width, float height,
     float xInTexture, float yInTexture,
     float widthInTexture, float heightInTexture,
     float textureWidth, float textureHeight,
-    TtsColor color,
-    TtsPlatform *win32
+    float r, float g, float b, float a
 ) {
     d3d11DrawQuad(
         x, y,
@@ -460,45 +449,44 @@ static void platformDrawTextureQuad(
         xInTexture / textureWidth, yInTexture / textureHeight,
         widthInTexture / textureWidth, heightInTexture / textureHeight,
         1.0f,
-        color,
-        &win32->vertices
+        r, g, b, a,
+        &platform->vertices
     );
 }
 
 static void platformDrawColorTriangle(
+    Platform *platform,
     float x0, float y0,
     float x1, float y1,
     float x2, float y2,
     float x3, float y3,
-    TtsColor color,
-    TtsPlatform *win32
+    float r, float g, float b, float a
 ) {
-    TTS_UNREFERENCED(x3);
-    TTS_UNREFERENCED(y3);
+    BASE_UNREFERENCED(x3);
+    BASE_UNREFERENCED(y3);
     d3d11DrawTriangle(
         x0, y0,
         0.0f, 0.0f,
         x1, y1, 0.0f, 0.0f,
         x2, y2, 0.0f, 0.0f,
         0.0f,
-        color,
-        &win32->vertices
+        r, g, b, a,
+        &platform->vertices
     );
 }
 
-static void d3d11Render(TtsTetris *tetris, UINT newWidth, UINT newHeight) {
+static void d3d11Render(Platform *platform, UINT oldWidth, UINT oldHeight, UINT newWidth, UINT newHeight) {
     HRESULT hr = E_FAIL;
-    TtsPlatform *win32 = tetris->platform;
-    if (!win32->renderTargetView || tetris->windowWidth != newWidth || tetris->windowHeight != newHeight) {
-        if (win32->renderTargetView) {
-            ID3D11RenderTargetView_Release(win32->renderTargetView);
+    if (!platform->renderTargetView || oldWidth != newWidth || oldHeight != newHeight) {
+        if (platform->renderTargetView) {
+            ID3D11RenderTargetView_Release(platform->renderTargetView);
         }
-        IDXGISwapChain1_ResizeBuffers(win32->swapChain, 0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
+        IDXGISwapChain1_ResizeBuffers(platform->swapChain, 0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
 
         D3D11_MAPPED_SUBRESOURCE mappedSubresource = {0};
         hr = ID3D11DeviceContext_Map(
-            win32->deviceContext,
-            (ID3D11Resource *) win32->constantBuffer,
+            platform->deviceContext,
+            (ID3D11Resource *) platform->constantBuffer,
             0,
             D3D11_MAP_WRITE_DISCARD,
 
@@ -506,42 +494,37 @@ static void d3d11Render(TtsTetris *tetris, UINT newWidth, UINT newHeight) {
             &mappedSubresource
         );
         if (SUCCEEDED(hr) && mappedSubresource.pData) {
-            VsConstants *destination = (VsConstants *) mappedSubresource.pData;
+            Win32VsConstants *destination = (Win32VsConstants *) mappedSubresource.pData;
             destination->windowWidth = (float)newWidth;
             destination->windowHeight = (float)newHeight;
 
             ID3D11DeviceContext_Unmap(
-                win32->deviceContext,
-                (ID3D11Resource *) win32->constantBuffer,
+                platform->deviceContext,
+                (ID3D11Resource *) platform->constantBuffer,
                 0
             );
         }
 
         ID3D11Texture2D *renderTarget = 0;
-        if (SUCCEEDED(IDXGISwapChain1_GetBuffer(win32->swapChain, 0, &IID_ID3D11Texture2D, (void **)&renderTarget))) {
-            ID3D11Device_CreateRenderTargetView(win32->device, (ID3D11Resource *) renderTarget, 0, &win32->renderTargetView);
+        if (SUCCEEDED(IDXGISwapChain1_GetBuffer(platform->swapChain, 0, &IID_ID3D11Texture2D, (void **)&renderTarget))) {
+            ID3D11Device_CreateRenderTargetView(platform->device, (ID3D11Resource *) renderTarget, 0, &platform->renderTargetView);
             ID3D11Texture2D_Release(renderTarget);
         }
     }
 
-    float normalizedBackground[4] = {
-        tetris->backgroundColor.r / 255.0f,
-        tetris->backgroundColor.g / 255.0f,
-        tetris->backgroundColor.b / 255.0f,
-        tetris->backgroundColor.a / 255.0f,
-    };
+    float backgroundColor[4] = {255.0f, 255.0f, 0.0f, 255.0f};
 
     ID3D11DeviceContext_ClearRenderTargetView(
-        win32->deviceContext,
-        win32->renderTargetView,
-        normalizedBackground
+        platform->deviceContext,
+        platform->renderTargetView,
+        backgroundColor
     );
 
     D3D11_MAPPED_SUBRESOURCE mappedSubresource = {0};
 
     hr = ID3D11DeviceContext_Map(
-        win32->deviceContext,
-        (ID3D11Resource *) win32->vertexBuffer,
+        platform->deviceContext,
+        (ID3D11Resource *) platform->vertexBuffer,
         0,
         D3D11_MAP_WRITE_DISCARD,
 
@@ -550,35 +533,35 @@ static void d3d11Render(TtsTetris *tetris, UINT newWidth, UINT newHeight) {
     );
 
     if (SUCCEEDED(hr) && mappedSubresource.pData) {
-        Vertex *destination = (Vertex *) mappedSubresource.pData;
-        for (uint32_t vertexIndex = 0; vertexIndex < win32->vertices.vertexCount; vertexIndex++) {
-            destination[vertexIndex] =  win32->vertices.vertices[vertexIndex];
+        Win32Vertex *destination = (Win32Vertex *) mappedSubresource.pData;
+        for (uint32_t vertexIndex = 0; vertexIndex < platform->vertices.vertexCount; vertexIndex++) {
+            destination[vertexIndex] =  platform->vertices.vertices[vertexIndex];
         }
 
         ID3D11DeviceContext_Unmap(
-            win32->deviceContext,
-            (ID3D11Resource *) win32->vertexBuffer,
+            platform->deviceContext,
+            (ID3D11Resource *) platform->vertexBuffer,
             0
         );
     }
 
-    UINT stride = sizeof(Vertex);
+    UINT stride = sizeof(Win32Vertex);
     UINT offset = 0;
 
     ID3D11DeviceContext_IASetVertexBuffers(
-        win32->deviceContext,
+        platform->deviceContext,
         0,
         1,
-        &win32->vertexBuffer,
+        &platform->vertexBuffer,
         &stride,
         &offset
     );
 
     ID3D11DeviceContext_VSSetConstantBuffers(
-        win32->deviceContext,
+        platform->deviceContext,
         0,
         1,
-        &win32->constantBuffer
+        &platform->constantBuffer
     );
 
     D3D11_VIEWPORT viewport = {0};
@@ -591,29 +574,29 @@ static void d3d11Render(TtsTetris *tetris, UINT newWidth, UINT newHeight) {
         viewport.MaxDepth = 0.0f;
     }
 
-    ID3D11DeviceContext_IASetPrimitiveTopology(win32->deviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    ID3D11DeviceContext_IASetPrimitiveTopology(platform->deviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-    ID3D11DeviceContext_IASetInputLayout(win32->deviceContext, win32->inputLayout);
+    ID3D11DeviceContext_IASetInputLayout(platform->deviceContext, platform->inputLayout);
 
-    ID3D11DeviceContext_RSSetViewports(win32->deviceContext, 1, &viewport);
+    ID3D11DeviceContext_RSSetViewports(platform->deviceContext, 1, &viewport);
 
-    ID3D11DeviceContext_VSSetShader(win32->deviceContext, win32->vertexShader, 0, 0);
+    ID3D11DeviceContext_VSSetShader(platform->deviceContext, platform->vertexShader, 0, 0);
 
-    ID3D11DeviceContext_PSSetShader(win32->deviceContext, win32->pixelShader, 0, 0);
+    ID3D11DeviceContext_PSSetShader(platform->deviceContext, platform->pixelShader, 0, 0);
 
-    ID3D11DeviceContext_PSSetSamplers(win32->deviceContext, 0, 1, &win32->samplerState);
+    ID3D11DeviceContext_PSSetSamplers(platform->deviceContext, 0, 1, &platform->samplerState);
 
-    ID3D11DeviceContext_PSSetShaderResources(win32->deviceContext, 0, 1, &win32->textureView);
+    ID3D11DeviceContext_PSSetShaderResources(platform->deviceContext, 0, 1, &platform->textureView);
 
-    ID3D11DeviceContext_OMSetRenderTargets(win32->deviceContext, 1, &win32->renderTargetView, 0);
+    ID3D11DeviceContext_OMSetRenderTargets(platform->deviceContext, 1, &platform->renderTargetView, 0);
 
-    ID3D11DeviceContext_OMSetBlendState(win32->deviceContext, win32->blendState, 0, 0xffffffff);
+    ID3D11DeviceContext_OMSetBlendState(platform->deviceContext, platform->blendState, 0, 0xffffffff);
 
-    ID3D11DeviceContext_Draw(win32->deviceContext, win32->vertices.vertexCount, 0);
+    ID3D11DeviceContext_Draw(platform->deviceContext, platform->vertices.vertexCount, 0);
 
-    IDXGISwapChain1_Present(win32->swapChain, 1, 0);
+    IDXGISwapChain1_Present(platform->swapChain, 1, 0);
 
-    ID3D11DeviceContext_ClearState(win32->deviceContext);
+    ID3D11DeviceContext_ClearState(platform->deviceContext);
 
-    win32->vertices.vertexCount = 0;
+    platform->vertices.vertexCount = 0;
 }

@@ -1,52 +1,3 @@
-static void d3d11Render(TtsTetris *tetris, UINT newWidth, UINT newHeight);
-
-typedef struct {
-    float x;
-    float y;
-    float u;
-    float v;
-    float mask;
-    float r;
-    float g;
-    float b;
-    float a;
-} Vertex;
-
-typedef struct {
-    float windowWidth;
-    float windowHeight;
-    double padding;
-} VsConstants;
-
-typedef struct  {
-    Vertex vertices[64 * 1024];
-    UINT vertexCount;
-} Vertices;
-
-struct TtsPlatform {
-    HWND window;
-    ID3D11Device *device;
-    ID3D11DeviceContext *deviceContext;
-    ID3D11RenderTargetView *renderTargetView;
-    IDXGISwapChain1 *swapChain;
-    ID3D11VertexShader *vertexShader;
-    ID3D11Buffer *vertexBuffer;
-    ID3D11PixelShader *pixelShader;
-    ID3D11InputLayout *inputLayout;
-    ID3D11Buffer *constantBuffer;
-    ID3D11SamplerState *samplerState;
-    ID3D11ShaderResourceView *textureView;
-    ID3D11BlendState *blendState;
-    IXAudio2 *xaudio;
-    IXAudio2MasteringVoice *masteringVoice;
-    IXAudio2SourceVoice *music;
-    IXAudio2SourceVoice *effects;
-    Vertices vertices;
-    LONGLONG performanceFrequency;
-    LONGLONG previousTicks;
-    bool hasSound;
-};
-
 static void platformDebugPrint(_Printf_format_string_ const char *format, ...) {
     char buffer[1024] = {0};
 
@@ -81,15 +32,14 @@ static LONGLONG win32QueryPerformanceCounter() {
     return performanceCounter.QuadPart;
 }
 
-static TtsReadResult platformReadEntireFile(char *path, TtsArena *arena) {
-    TtsReadResult result = {0};
-
+static bool platformReadEntireFile(char *path, BaseArena *arena, BaseReadResult *readResult) {
     HANDLE file = CreateFile(path, GENERIC_READ, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
 
+    bool result = false;
     if (file != INVALID_HANDLE_VALUE) {
         LONGLONG fileSize = win32GetFileSize(file);
 
-        void *destination = ttsArenaPushSize(arena, fileSize);
+        void *destination = baseArenaPushSize(arena, fileSize);
 
         LONGLONG remainingBytesToRead = fileSize;
 
@@ -109,32 +59,33 @@ static TtsReadResult platformReadEntireFile(char *path, TtsArena *arena) {
         }
 
         if (remainingBytesToRead == 0) {
-            result.data = destination;
-            result.size = fileSize;
+            result = true;
+            readResult->data = destination;
+            readResult->size = fileSize;
         }
         CloseHandle(file);
     }
     return result;
 }
 
-static int win32MapControlToVirtualKey(TtsControlType controlType) {
-    TTS_ASSERT(controlType > TtsControlType_None);
-    TTS_ASSERT(controlType < TtsControlType_Count);
+static int win32MapControlToVirtualKey(PlatformControlType controlType) {
+    BASE_ASSERT(controlType > PlatformControlType_None);
+    BASE_ASSERT(controlType < PlatformControlType_Count);
 
-    int virtualKeys[TtsControlType_Count] = {
-        [TtsControlType_Left] = VK_LEFT,
-        [TtsControlType_Right] = VK_RIGHT,
-        [TtsControlType_Up] = VK_UP,
-        [TtsControlType_Down] = VK_DOWN,
-        [TtsControlType_Esc] = VK_ESCAPE,
-        [TtsControlType_Space] = VK_SPACE,
-        [TtsControlType_Enter] = VK_RETURN,
-        [TtsControlType_C] = 'C',
-        [TtsControlType_L] = 'L',
-        [TtsControlType_P] = 'P',
-        [TtsControlType_MouseLeft] = VK_LBUTTON,
-        [TtsControlType_MouseRight] = VK_RBUTTON,
-        [TtsControlType_MouseCenter] = VK_MBUTTON,
+    int virtualKeys[PlatformControlType_Count] = {
+        [PlatformControlType_Left] = VK_LEFT,
+        [PlatformControlType_Right] = VK_RIGHT,
+        [PlatformControlType_Up] = VK_UP,
+        [PlatformControlType_Down] = VK_DOWN,
+        [PlatformControlType_Esc] = VK_ESCAPE,
+        [PlatformControlType_Space] = VK_SPACE,
+        [PlatformControlType_Enter] = VK_RETURN,
+        [PlatformControlType_C] = 'C',
+        [PlatformControlType_L] = 'L',
+        [PlatformControlType_P] = 'P',
+        [PlatformControlType_MouseLeft] = VK_LBUTTON,
+        [PlatformControlType_MouseRight] = VK_RBUTTON,
+        [PlatformControlType_MouseCenter] = VK_MBUTTON,
     };
 
     int result = virtualKeys[controlType];
@@ -142,10 +93,10 @@ static int win32MapControlToVirtualKey(TtsControlType controlType) {
     return result;
 }
 
-static TtsControlType win32MapVirtualKeyToControl(int virtualKey) {
-    TtsControlType result = TtsControlType_None;
+static PlatformControlType win32MapVirtualKeyToControl(int virtualKey) {
+    PlatformControlType result = PlatformControlType_None;
 
-    for (TtsControlType controlType = TtsControlType_None + 1; controlType < TtsControlType_Count; controlType++) {
+    for (PlatformControlType controlType = PlatformControlType_None + 1; controlType < PlatformControlType_Count; controlType++) {
         if (win32MapControlToVirtualKey(controlType) == virtualKey) {
             result = controlType;
             break;
@@ -155,49 +106,49 @@ static TtsControlType win32MapVirtualKeyToControl(int virtualKey) {
     return result;
 }
 
-static void win32Update(TtsTetris *tetris) {
-    if (tetris) {
-        TtsPlatform *win32 = tetris->platform;
+static void win32Update(Tetris *tetris, Platform *platform, PlatformInput *input) {
+    BASE_ASSERT(tetris);
+    BASE_ASSERT(platform);
+    RECT rect = {0};
+    GetClientRect(platform->window, &rect);
+    UINT newWidth = rect.right - rect.left;
+    UINT newHeight = rect.bottom - rect.top;
 
-        RECT rect = {0};
-        GetClientRect(win32->window, &rect);
-        UINT newWidth = rect.right - rect.left;
-        UINT newHeight = rect.bottom - rect.top;
+    input->windowWidth = newWidth;
+    input->windowHeight = newHeight;
 
-        POINT mousePosition = {0};
-        GetCursorPos(&mousePosition);
-        ScreenToClient(tetris->platform->window, &mousePosition);
-        tetris->mouseX = mousePosition.x;
-        tetris->mouseY = mousePosition.y;
+    POINT mousePosition = {0};
+    GetCursorPos(&mousePosition);
+    ScreenToClient(platform->window, &mousePosition);
+    input->mouseX = mousePosition.x;
+    input->mouseY = mousePosition.y;
 
-        for (TtsControlType controlType = TtsControlType_None + 1; controlType < TtsControlType_Count; controlType++) {
-            int virtualKey = win32MapControlToVirtualKey(controlType);
-            tetris->controls[controlType].isDown = GetAsyncKeyState(virtualKey) < 0;
-        }
-
-        float secondsElapsed = 0.0f;
-
-        LONGLONG currentTicks = win32QueryPerformanceCounter();
-
-        if (win32->previousTicks) {
-            LONGLONG elapsedTicks = currentTicks - win32->previousTicks;
-
-            secondsElapsed = (float) elapsedTicks / (float)win32->performanceFrequency;
-        }
-
-        win32->previousTicks = currentTicks;
-
-        ttsUpdate(tetris, secondsElapsed);
-
-        if (tetris->shouldQuit) {
-            PostQuitMessage(0);
-        }
-
-        d3d11Render(tetris, newWidth, newHeight);
-        tetris->windowWidth = newWidth;
-        tetris->windowHeight = newHeight;
-        tetris->wasResizing = tetris->isResizing;
+    for (PlatformControlType controlType = PlatformControlType_None + 1; controlType < PlatformControlType_Count; controlType++) {
+        int virtualKey = win32MapControlToVirtualKey(controlType);
+        input->controls[controlType].isDown = GetAsyncKeyState(virtualKey) < 0;
     }
+
+    LONGLONG currentTicks = win32QueryPerformanceCounter();
+
+    if (platform->previousTicks) {
+        LONGLONG elapsedTicks = currentTicks - platform->previousTicks;
+
+        input->secondsElapsed = (float) elapsedTicks / (float)platform->performanceFrequency;
+    }
+
+    platform->previousTicks = currentTicks;
+
+    bool shouldQuit = false;
+    tetrisUpdate(tetris, platform, *input, &shouldQuit);
+
+    if (shouldQuit) {
+        PostQuitMessage(0);
+    }
+
+    d3d11Render(platform, platform->windowWidth, platform->windowHeight, newWidth, newHeight);
+    platform->windowWidth = newWidth;
+    platform->windowHeight = newHeight;
+    platformMemset(input, 0, sizeof(PlatformInput));
 }
 
 static void platformMemset(void * pointer, int value, size_t count) {

@@ -1,8 +1,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "tetris.h"
+#include "base.h"
+#include "wav.h"
 #include "platform.h"
+#include "tetris.h"
+
+#include "base.c"
+#include "wav.c"
 #include "tetris.c"
 
 #define COBJMACROS
@@ -17,6 +22,9 @@
 #include <stdio.h>
 #include <xaudio2.h>
 #pragma warning(pop)
+
+#include "win32.h"
+#include "d3d11.h"
 
 #include "win32.c"
 #include "d3d11.c"
@@ -45,10 +53,10 @@ int WinMain(
     _In_     LPSTR     commandLine,
     _In_     int       showCommand
 )  {
-    TTS_UNREFERENCED(instance);
-    TTS_UNREFERENCED(previousInstance);
-    TTS_UNREFERENCED(commandLine);
-    TTS_UNREFERENCED(showCommand);
+    BASE_UNREFERENCED(instance);
+    BASE_UNREFERENCED(previousInstance);
+    BASE_UNREFERENCED(commandLine);
+    BASE_UNREFERENCED(showCommand);
 
     BOOL ok = 0;
     HRESULT hr = E_FAIL;
@@ -59,20 +67,20 @@ int WinMain(
         &IID_IDWriteFactory,
         (IUnknown **)(&factory)
     );
-    TTS_ASSERT(SUCCEEDED(hr));
+    BASE_ASSERT(SUCCEEDED(hr));
 
     IDWriteGdiInterop *gdiInterop = 0;
     hr = IDWriteFactory_GetGdiInterop(factory, &gdiInterop);
-    TTS_ASSERT(SUCCEEDED(hr));
+    BASE_ASSERT(SUCCEEDED(hr));
 
     IDWriteFontFile* fontFile = 0;
     hr = IDWriteFactory_CreateFontFileReference(
         factory,
-        TTS_FONT_PATH,
+        TETRIS_FONT_PATH,
         0,
         &fontFile
     );
-    TTS_ASSERT(SUCCEEDED(hr));
+    BASE_ASSERT(SUCCEEDED(hr));
 
     IDWriteFontFace *fontFace = 0;
     hr = IDWriteFactory_CreateFontFace(
@@ -84,13 +92,13 @@ int WinMain(
         DWRITE_FONT_SIMULATIONS_NONE,
         &fontFace
     );
-    TTS_ASSERT(SUCCEEDED(hr));
+    BASE_ASSERT(SUCCEEDED(hr));
 
     UINT32 renderTargetHeight = 256;
     UINT32 renderTargetWidth  = 256;
     IDWriteBitmapRenderTarget *renderTarget = 0;
     hr = IDWriteGdiInterop_CreateBitmapRenderTarget(gdiInterop, 0, renderTargetWidth, renderTargetHeight, &renderTarget);
-    TTS_ASSERT(SUCCEEDED(hr));
+    BASE_ASSERT(SUCCEEDED(hr));
 
     IDWriteRenderingParams *renderingParams = 0;
     hr = IDWriteFactory_CreateCustomRenderingParams(
@@ -102,7 +110,7 @@ int WinMain(
         DWRITE_RENDERING_MODE_GDI_NATURAL,
         &renderingParams
     );
-    TTS_ASSERT(SUCCEEDED(hr));
+    BASE_ASSERT(SUCCEEDED(hr));
 
     uint64_t bufferSize = 1024 * 1024;
     void *buffer = VirtualAlloc(
@@ -111,10 +119,10 @@ int WinMain(
         MEM_COMMIT | MEM_RESERVE,
         PAGE_READWRITE
     );
-    TTS_ASSERT(buffer);
+    BASE_ASSERT(buffer);
 
     HANDLE fontFileHandle = CreateFileW(
-        TTS_FONT_PATH,
+        TETRIS_FONT_PATH,
         GENERIC_READ,
         FILE_SHARE_READ,
         0,
@@ -122,7 +130,7 @@ int WinMain(
         FILE_ATTRIBUTE_NORMAL,
         0
     );
-    TTS_ASSERT(fontFileHandle != INVALID_HANDLE_VALUE);
+    BASE_ASSERT(fontFileHandle != INVALID_HANDLE_VALUE);
 
     DWORD numberOfBytesRead  = 0;
 
@@ -133,12 +141,12 @@ int WinMain(
         &numberOfBytesRead,
         0
     );
-    TTS_ASSERT(ok);
+    BASE_ASSERT(ok);
 
     uint64_t fontFileSize = numberOfBytesRead;
-    UINT32 codepoints[TTS_CODEPOINT_COUNT] = {0};
-    for (uint32_t codepointIndex = 0; codepointIndex < TTS_ARRAYCOUNT(codepoints); codepointIndex++) {
-        codepoints[codepointIndex] =  TTS_FIRST_CODEPOINT + codepointIndex;
+    UINT32 codepoints[TETRIS_CODEPOINT_COUNT] = {0};
+    for (uint32_t codepointIndex = 0; codepointIndex < BASE_ARRAYCOUNT(codepoints); codepointIndex++) {
+        codepoints[codepointIndex] =  TETRIS_FIRST_CODEPOINT + codepointIndex;
     }
 
     DWRITE_FONT_METRICS fontFaceMetrics = {0};
@@ -153,16 +161,16 @@ int WinMain(
     float emSizeInPixels = (float)fontFaceMetrics.designUnitsPerEm * pixelsPerDesignUnit;
     float ascentInPixels =  fontFaceMetrics.ascent * pixelsPerDesignUnit;
 
-    UINT16 glyphIndices[TTS_ARRAYCOUNT(codepoints)] = {0};
+    UINT16 glyphIndices[BASE_ARRAYCOUNT(codepoints)] = {0};
     hr = IDWriteFontFace_GetGlyphIndices(
         fontFace,
         codepoints,
-        TTS_ARRAYCOUNT(codepoints),
+        BASE_ARRAYCOUNT(codepoints),
         glyphIndices
     );
-    TTS_ASSERT(SUCCEEDED(hr));
+    BASE_ASSERT(SUCCEEDED(hr));
 
-    DWRITE_GLYPH_METRICS glyphMetrics[TTS_ARRAYCOUNT(glyphIndices)] = {0};
+    DWRITE_GLYPH_METRICS glyphMetrics[BASE_ARRAYCOUNT(glyphIndices)] = {0};
     hr = IDWriteFontFace_GetGdiCompatibleGlyphMetrics(
         fontFace,
         emSizeInPixels,
@@ -170,16 +178,16 @@ int WinMain(
         0,
         1,
         glyphIndices,
-        TTS_ARRAYCOUNT(glyphIndices),
+        BASE_ARRAYCOUNT(glyphIndices),
         glyphMetrics,
         0
     );
-    TTS_ASSERT(SUCCEEDED(hr));
+    BASE_ASSERT(SUCCEEDED(hr));
 
-    AtlGlyphHeight glyphHeights [TTS_CODEPOINT_COUNT] = {0};
+    AtlGlyphHeight glyphHeights [TETRIS_CODEPOINT_COUNT] = {0};
 
-    TtsAtlas atlas = {0};
-    for (uint32_t codepointIndex = 0; codepointIndex < TTS_ARRAYCOUNT(codepoints); codepointIndex++) {
+    TetrisAtlas atlas = {0};
+    for (uint32_t codepointIndex = 0; codepointIndex < BASE_ARRAYCOUNT(codepoints); codepointIndex++) {
         atlas.glyphs[codepointIndex].codepoint = codepoints[codepointIndex];
         atlas.glyphs[codepointIndex].index = glyphIndices[codepointIndex];
         DWRITE_GLYPH_METRICS currentGlyphMetrics = glyphMetrics[codepointIndex];
@@ -190,7 +198,7 @@ int WinMain(
 
     qsort(
         glyphHeights,
-        TTS_ARRAYCOUNT(glyphHeights),
+        BASE_ARRAYCOUNT(glyphHeights),
         sizeof(*glyphHeights),
         compareGlyphHeightDescending
     );
@@ -202,8 +210,8 @@ int WinMain(
 
     uint8_t *targetPixels = (uint8_t *)buffer + fontFileSize;
 
-    for (uint32_t glyphIndex = 0; glyphIndex < TTS_ARRAYCOUNT(atlas.glyphs); glyphIndex++) {
-        TtsGlyph *glyph = atlas.glyphs + glyphHeights[glyphIndex].codepoint - TTS_FIRST_CODEPOINT;
+    for (uint32_t glyphIndex = 0; glyphIndex < BASE_ARRAYCOUNT(atlas.glyphs); glyphIndex++) {
+        TetrisGlyph *glyph = atlas.glyphs + glyphHeights[glyphIndex].codepoint - TETRIS_FIRST_CODEPOINT;
 
         HDC dc = IDWriteBitmapRenderTarget_GetMemoryDC(renderTarget);
 
@@ -217,9 +225,9 @@ int WinMain(
             renderTargetHeight,
             BLACKNESS
         );
-        TTS_ASSERT(ok);
+        BASE_ASSERT(ok);
 
-        TTS_ASSERT(SUCCEEDED(hr));
+        BASE_ASSERT(SUCCEEDED(hr));
 
         FLOAT glyphAdvance = 0.0f;
 
@@ -250,11 +258,11 @@ int WinMain(
             RGB(0, 0, 255),
             &blackBoxRect
         );
-        TTS_ASSERT(SUCCEEDED(hr));
-        TTS_ASSERT(blackBoxRect.left >= 0);
-        TTS_ASSERT(blackBoxRect.top >= 0);
-        TTS_ASSERT(blackBoxRect.right < (LONG)renderTargetWidth);
-        TTS_ASSERT(blackBoxRect.bottom < (LONG)renderTargetHeight);
+        BASE_ASSERT(SUCCEEDED(hr));
+        BASE_ASSERT(blackBoxRect.left >= 0);
+        BASE_ASSERT(blackBoxRect.top >= 0);
+        BASE_ASSERT(blackBoxRect.right < (LONG)renderTargetWidth);
+        BASE_ASSERT(blackBoxRect.bottom < (LONG)renderTargetHeight);
 
         DIBSECTION dib = {0};
         GetObject(bitmap, sizeof(dib), &dib);
@@ -292,7 +300,7 @@ int WinMain(
                 int32_t targetX = x + xOffset;
                 uint32_t targetOffsetInBytes = targetY * bitmapWidth + targetX;
 
-                TTS_ASSERT(targetOffsetInBytes < bufferSize);
+                BASE_ASSERT(targetOffsetInBytes < bufferSize);
                 targetPixels[(targetY * bitmapWidth) + targetX] = targetPixel;
             }
         }
@@ -302,18 +310,18 @@ int WinMain(
 
     int32_t bitmapHeight = yOffset + lineHeight;
     {
-        HANDLE file = CreateFileA(TTS_ATLAS_PATH, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
-        TTS_ASSERT(file);
+        HANDLE file = CreateFileA(TETRIS_ATLAS_PATH, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+        BASE_ASSERT(file);
         DWORD bytesWritten = 0;
         atlas.width = (float)bitmapWidth;
         atlas.height = (float)bitmapHeight;
         atlas.lineHeightInPixels = (float)(fontHeightInDesignUnits + fontFaceMetrics.lineGap) * pixelsPerDesignUnit;
         ok = WriteFile(file, &atlas, sizeof(atlas), &bytesWritten, 0);
-        TTS_ASSERT(ok);
+        BASE_ASSERT(ok);
         ok = WriteFile(file, targetPixels, bitmapWidth * bitmapHeight, &bytesWritten, 0);
         DWORD error = GetLastError();
         platformDebugPrint("%u\n", error);
-        TTS_ASSERT(ok);
+        BASE_ASSERT(ok);
         CloseHandle(file);
     }
 

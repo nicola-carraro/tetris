@@ -1,126 +1,79 @@
-static uint32_t ttsGetRandomNumber(TtsTetris *tetris) {
+static uint32_t tetrisGetRandomNumber(Tetris *tetris) {
     uint32_t result = (tetris->seed * 69069) + 1;
     tetris->seed = result;
     return result;
 }
 
-static TtsString ttsMakeString (char *text, uint64_t size) {
-    TtsString result = {0};
+static PlatformControl tetrisGetControl(PlatformInput input, PlatformControlType controlType) {
+    BASE_ASSERT(controlType > PlatformControlType_None);
+    BASE_ASSERT(controlType < PlatformControlType_Count);
 
-    result.text = text;
-    result.size = size;
-
-    return result;
-}
-
-static bool ttsArenaInit(
-    TtsArena *arena, uint64_t size
-) {
-    bool result = false;
-
-    void *buffer = platformAllocate(size);
-
-    if (buffer) {
-        arena->capacity = size;
-        arena->buffer = buffer;
-        result = true;
-    }
+    PlatformControl result = input.controls[controlType];
 
     return result;
 }
 
-static void *ttsArenaPushSize(TtsArena *arena, uint64_t size) {
-    uint64_t newUsed = arena->used + size;
-
-    uint64_t alignement = 64;
-
-    if (newUsed % alignement != 0) {
-        newUsed = ((newUsed / alignement) + 1) * alignement;
-    }
-
-    TTS_ASSERT(newUsed <= arena->capacity);
-
-    void *result = ((uint8_t *) arena->buffer) + arena->used;
-
-    arena->used = newUsed;
+static bool tetrisControlPressed(PlatformInput input, PlatformControlType controlType) {
+    bool result = tetrisGetControl(input, controlType).pressCount > 0;
 
     return result;
 }
 
-static TtsColor ttsMakeColor(float r, float g, float b, float a) {
-    TtsColor result = {r, g, b, a};
+static bool tetrisControlReleased(PlatformInput input, PlatformControlType controlType) {
+    bool result = tetrisGetControl(input, controlType).releaseCount > 0;
 
     return result;
 }
 
-static TtsControl ttsGetControl(TtsTetris *tetris, TtsControlType controlType) {
-    TTS_ASSERT(tetris);
-    TTS_ASSERT(controlType > TtsControlType_None);
-    TTS_ASSERT(controlType < TtsControlType_Count);
-
-    TtsControl result = tetris->controls[controlType];
+static bool tetrisControlDown(PlatformInput input, PlatformControlType controlType) {
+    bool result = tetrisGetControl(input, controlType).isDown;
 
     return result;
 }
 
-static bool ttsControlPressed(TtsTetris *tetris, TtsControlType controlType) {
-    bool result = ttsGetControl(tetris, controlType).pressCount > 0;
-
-    return result;
-}
-
-static bool ttsControlReleased(TtsTetris *tetris, TtsControlType controlType) {
-    bool result = ttsGetControl(tetris, controlType).releaseCount > 0;
-
-    return result;
-}
-
-static bool ttsControlDown(TtsTetris *tetris, TtsControlType controlType) {
-    bool result = ttsGetControl(tetris, controlType).isDown;
-
-    return result;
-}
-
-static void ttsDrawGlyph(
-    TtsTetris *tetris,
-    TtsGlyph glyph,
+static void tetrisDrawGlyph(
+    Tetris *tetris,
+    Platform *platform,
+    TetrisGlyph glyph,
     float x, float y,
     float scale,
-    TtsColor color
+    BaseColor color
 ) {
     float quadX = x + glyph.xOffsetInPixels * scale;
     float quadY = y + glyph.yOffsetInPixels * scale;
     float quadWidth = glyph.bitmapWidthInPixels * scale;
     float quadHeight = glyph.bitmapHeightInPixels * scale;
     platformDrawTextureQuad(
+        platform,
         quadX, quadY,
         quadWidth, quadHeight,
         glyph.bitmapXInPixels, glyph.bitmapYInPixels,
         glyph.bitmapWidthInPixels, glyph.bitmapHeightInPixels,
         tetris->atlas.width, tetris->atlas.height,
-        color,
-        tetris->platform
+        color.r, color.g, color.b, color.a
     );
 }
 
-static void ttsDrawString(
-    TtsTetris *tetris,
-    TtsString string,
+static void tetrisDrawString(
+    Tetris *tetris,
+    Platform *platform,
+    BaseString string,
     float x, float y,
     float scale,
-    TtsColor color
+    BaseColor color
 ) {
     for (char codepointIndex = 0; codepointIndex < string.size; codepointIndex++) {
         char codepoint = string.text[codepointIndex];
-        TTS_ASSERT(codepoint >= TTS_FIRST_CODEPOINT);
-        TTS_ASSERT(codepoint <= TTS_LAST_CODEPOINT);
+        BASE_ASSERT(codepoint >= TETRIS_FIRST_CODEPOINT);
+        BASE_ASSERT(codepoint <= TETRIS_LAST_CODEPOINT);
 
-        uint32_t index = codepoint - TTS_FIRST_CODEPOINT;
-        TTS_ASSERT(index < TTS_ARRAYCOUNT(tetris->atlas.glyphs));
+        uint32_t index = codepoint - TETRIS_FIRST_CODEPOINT;
+        BASE_ASSERT(index < BASE_ARRAYCOUNT(tetris->atlas.glyphs));
 
-        TtsGlyph glyph = tetris->atlas.glyphs[index];
-        ttsDrawGlyph(
+        TetrisGlyph glyph = tetris->atlas.glyphs[index];
+        tetrisDrawGlyph(
             tetris,
+            platform,
             glyph,
             x,  y,
             scale,
@@ -131,403 +84,373 @@ static void ttsDrawString(
     }
 }
 
-static Wav ttsWavParseFile(TtsReadResult file) {
-    uint8_t *bytes = (uint8_t*) file.data;
+static bool tetrisInit(Tetris *tetris, uint64_t platformSize, uint32_t seed, Platform **platform, PlatformTexture *texture) {
+    bool ok = false;
 
-    Wav wav = {0};
+    if (baseArenaInit(&tetris->arena, TETRIS_ALLOCATION_SIZE)) {
+        BaseReadResult file = {0};
+        ok = platformReadEntireFile(TETRIS_ATLAS_PATH, &tetris->arena, &file);
 
-    RiffChunk *riffChunk = (RiffChunk *)bytes;
-    wav.riffChunk = riffChunk;
+        if (ok && file.data) {
+            TetrisAtlas *atlas = (TetrisAtlas *)file.data;
+            tetris->atlas = *atlas;
+            tetris->seed = seed;
+            texture->data = (uint8_t *)file.data + sizeof(TetrisAtlas);
+            texture->width = (uint32_t)atlas->width;
+            texture->height = (uint32_t)atlas->height;
 
-    WavChunkHeader *chunkHeader = 0;
-    for (uint64_t offset = sizeof(RiffChunk); (offset + sizeof(RiffChunk) - 4) < riffChunk->chunkSize && offset < file.size; offset += (chunkHeader->chunkSize + sizeof(WavChunkHeader))) {
-        chunkHeader = (WavChunkHeader *) (bytes + offset);
+            *platform = baseArenaPushSize(&tetris->arena , platformSize);
 
-        if (chunkHeader->chunkId == ' tmf') {
-            WavFmtChunk *fmtChunk = (WavFmtChunk *)(bytes + offset + sizeof(WavChunkHeader));
-            wav.fmtChunk = fmtChunk;
-            #if 0
-            platformDebugPrint("formatTag %u\n", fmtChunk->formatTag);
-            platformDebugPrint("channels %u\n", fmtChunk->channels);
-            platformDebugPrint("samplesPerSec %u\n", fmtChunk->samplesPerSec);
-            platformDebugPrint("avgBytesPerSec %u\n", fmtChunk->avgBytesPerSec);
-            platformDebugPrint("blockAlign %u\n", fmtChunk->blockAlign);
-            platformDebugPrint("bitsPerSample %u\n", fmtChunk->bitsPerSample);
-            platformDebugPrint("extensionSize %u\n", fmtChunk->extensionSize);
-            platformDebugPrint("validBitsPerSample %u\n", fmtChunk->validBitsPerSample);
-            platformDebugPrint("channelMask %u\n", fmtChunk->channelMask);
-            #endif
-        }
+            char musicPaths[TetrisMusic_Count][256] = {
+                [TetrisMusic_Theme] = TETRIS_DATA_DIR "theme.wav",
+                [TetrisMusic_Celebrate] = TETRIS_DATA_DIR "celebrate.wav",
+            };
 
-        if (chunkHeader->chunkId == 'atad') {
-            void *data = (void *)(bytes + offset + sizeof(WavChunkHeader));
-            wav.data = data;
-            wav.dataSize = chunkHeader->chunkSize;
-        }
-    }
+            for (TetrisMusic music = TetrisMusic_None + 1; music < TetrisMusic_Count; music++) {
+                BaseReadResult soundFile = {0};
+                char *path = musicPaths[music];
+                if (platformReadEntireFile(path, &tetris->arena, &soundFile)) {
+                    tetris->musics[music] = wavParseFile(soundFile);
+                }
+            }
 
-    return wav;
-}
+            char effectsPaths[TetrisSoundEffect_Count][256] = {
+                [TetrisSoundEffect_Whoosh] = TETRIS_DATA_DIR "whoosh.wav",
+                [TetrisSoundEffect_Click] = TETRIS_DATA_DIR "click.wav",
+                [TetrisSoundEffect_GameOver] = TETRIS_DATA_DIR "game-over.wav",
+                [TetrisSoundEffect_Yay] = TETRIS_DATA_DIR "yay.wav",
+                [TetrisSoundEffect_LevelUp] = TETRIS_DATA_DIR "level-up.wav",
+            };
 
-static bool ttsInit(TtsTetris *tetris, uint64_t platformSize) {
-    bool result = false;
-
-    if (ttsArenaInit(&tetris->arena, TTS_ALLOCATION_SIZE)) {
-        result = true;
-
-        tetris->platform = ttsArenaPushSize(&tetris->arena , platformSize);
-
-        char musicPaths[TtsMusic_Count][256] = {
-            [TtsMusic_Theme] = TTS_DATA_DIR "theme.wav",
-            [TtsMusic_Celebrate] = TTS_DATA_DIR "celebrate.wav",
-        };
-
-        for (TtsMusic music = TtsMusic_None + 1; music < TtsMusic_Count; music++) {
-            TtsReadResult soundFile = {0};
-            char *path = musicPaths[music];
-            soundFile = platformReadEntireFile(path, &tetris->arena);
-            tetris->musics[music] = ttsWavParseFile(soundFile);
-        }
-
-        tetris->backgroundColor = ttsMakeColor(34.0f, 67.0f, 74.0f, 255.0f);
-
-        char effectsPaths[TtsSoundEffect_Count][256] = {
-            [TtsSoundEffect_Whoosh] = TTS_DATA_DIR "whoosh.wav",
-            [TtsSoundEffect_Click] = TTS_DATA_DIR "click.wav",
-            [TtsSoundEffect_GameOver] = TTS_DATA_DIR "game_over.wav",
-            [TtsSoundEffect_Ding] = TTS_DATA_DIR "ding.wav",
-            [TtsSoundEffect_Success] = TTS_DATA_DIR "success.wav",
-            [TtsSoundEffect_Pluck] = TTS_DATA_DIR "pluck.wav",
-            [TtsSoundEffect_Yay] = TTS_DATA_DIR "yay.wav",
-            [TtsSoundEffect_LevelUp] = TTS_DATA_DIR "level-up.wav",
-        };
-
-        for (TtsSoundEffect effect = TtsSoundEffect_None + 1; effect < TtsSoundEffect_Count; effect++) {
-            TtsReadResult soundFile = {0};
-            char *path = effectsPaths[effect];
-            soundFile = platformReadEntireFile(path, &tetris->arena);
-            tetris->soundEffects[effect] = ttsWavParseFile(soundFile);
+            for (TetrisSoundEffect effect = TetrisSoundEffect_None + 1; effect < TetrisSoundEffect_Count; effect++) {
+                BaseReadResult soundFile = {0};
+                char *path = effectsPaths[effect];
+                if (platformReadEntireFile(path, &tetris->arena, &soundFile)) {
+                    tetris->soundEffects[effect] = wavParseFile(soundFile);
+                }
+            }
         }
     }
 
-    return result;
+    return ok;
 }
 
-TtsTetraminoPattern ttsGetTetraminoPattern(TtsTetraminoType tetraminoType) {
-    TTS_ASSERT(tetraminoType > TtsTetraminoType_None);
-    TTS_ASSERT(tetraminoType < TtsTetraminoType_Count);
+static TetrisPiecePattern tetrisGetPiecePattern(TetrisPieceType pieceType) {
+    BASE_ASSERT(pieceType > TetrisPieceType_None);
+    BASE_ASSERT(pieceType < TetrisPieceType_Count);
 
-    TtsTetraminoPattern patterns[TtsTetraminoType_Count] = {
-        [TtsTetraminoType_I] = {{{-1.5f, -0.5f}, {-0.5f, -0.5f}, {0.5f, -0.5f}, {1.5f,  -0.5f}}},
-        [TtsTetraminoType_O] = {{{-0.5f, -0.5f}, {0.5f, -0.5f}, {-0.5f, 0.5f}, {0.5f, 0.5f}}},
-        [TtsTetraminoType_T] = {{{0.0f, -1.0f}, {-1.0f, 0.0f}, {0.0f, 0.0f}, {1.0f, 0.0f}}},
-        [TtsTetraminoType_L] = {{{-1.0f, 0.0f}, {0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, -1.0f}}},
-        [TtsTetraminoType_J] = {{{-1.0f, -1.0f}, {-1.0f, 0.0f}, {0.0f, 0.0f}, {1.0f, 0.0f}}},
-        [TtsTetraminoType_Z] = {{{-1.0f, -1.0f}, {0.0f, -1.0f}, {0.0f, 0.0f}, {1.0f, 0.0f}}},
-        [TtsTetraminoType_S] = {{{-1.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, -1.0f}, {1.0f, -1.0f}}},
+    TetrisPiecePattern patterns[TetrisPieceType_Count] = {
+        [TetrisPieceType_I] = {{{-1.5f, -0.5f}, {-0.5f, -0.5f}, {0.5f, -0.5f}, {1.5f,  -0.5f}}},
+        [TetrisPieceType_O] = {{{-0.5f, -0.5f}, {0.5f, -0.5f}, {-0.5f, 0.5f}, {0.5f, 0.5f}}},
+        [TetrisPieceType_T] = {{{0.0f, -1.0f}, {-1.0f, 0.0f}, {0.0f, 0.0f}, {1.0f, 0.0f}}},
+        [TetrisPieceType_L] = {{{-1.0f, 0.0f}, {0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, -1.0f}}},
+        [TetrisPieceType_J] = {{{-1.0f, -1.0f}, {-1.0f, 0.0f}, {0.0f, 0.0f}, {1.0f, 0.0f}}},
+        [TetrisPieceType_Z] = {{{-1.0f, -1.0f}, {0.0f, -1.0f}, {0.0f, 0.0f}, {1.0f, 0.0f}}},
+        [TetrisPieceType_S] = {{{-1.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, -1.0f}, {1.0f, -1.0f}}},
     };
 
-    TtsTetraminoPattern result = patterns[tetraminoType];
+    TetrisPiecePattern result = patterns[pieceType];
 
     return result;
 }
 
-static uint32_t ttsGetCurrentLevel(TtsTetris *tetris) {
-    uint32_t result = (tetris->clearedLines / TTS_LINES_PER_LEVEL) + 1;
+static uint32_t tetrisGetCurrentLevel(Tetris *tetris) {
+    uint32_t result = (tetris->clearedRows / TETRIS_LINES_PER_LEVEL) + 1;
 
-    if (result >= TTS_LEVEL_COUNT_PLUS_ONE) {
-        result = TTS_LEVEL_COUNT_PLUS_ONE - 1;
+    if (result >= TETRIS_LEVEL_COUNT_PLUS_ONE) {
+        result = TETRIS_LEVEL_COUNT_PLUS_ONE - 1;
     }
 
     return result;
 }
 
-TtsColorScheme ttsGetColorScheme(TtsTetris *tetris) {
-    uint32_t level = ttsGetCurrentLevel(tetris);
+static TetrisColorScheme tetrisGetColorScheme(Tetris *tetris) {
+    uint32_t level = tetrisGetCurrentLevel(tetris);
 
-    TtsColorScheme schemes[] = {
+    TetrisColorScheme schemes[] = {
         [1] = {
             {
-                [TtsTetraminoType_I] = {0.0f, 255.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_O] = {255.0f, 255.0f, 0.0f, 255.0f},
-                [TtsTetraminoType_T] = {180.0f, 0.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_L] = {255.0f, 140.0f, 0.0f, 255.0f},
-                [TtsTetraminoType_J] = {0.0f, 120.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_Z] = {255.0f, 0.0f, 80.0f, 255.0f},
-                [TtsTetraminoType_S] = {0.0f, 255.0f, 120.0f, 255.0f},
+                [TetrisPieceType_I] = {0.0f, 255.0f, 255.0f, 255.0f},
+                [TetrisPieceType_O] = {255.0f, 255.0f, 0.0f, 255.0f},
+                [TetrisPieceType_T] = {180.0f, 0.0f, 255.0f, 255.0f},
+                [TetrisPieceType_L] = {255.0f, 140.0f, 0.0f, 255.0f},
+                [TetrisPieceType_J] = {0.0f, 120.0f, 255.0f, 255.0f},
+                [TetrisPieceType_Z] = {255.0f, 0.0f, 80.0f, 255.0f},
+                [TetrisPieceType_S] = {0.0f, 255.0f, 120.0f, 255.0f},
             }
         },
         {
             {
-                [TtsTetraminoType_I] = {255.0f, 64.0f, 64.0f, 255.0f},
-                [TtsTetraminoType_O] = {64.0f, 255.0f, 64.0f, 255.0f},
-                [TtsTetraminoType_T] = {64.0f, 128.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_L] = {255.0f, 200.0f, 64.0f, 255.0f},
-                [TtsTetraminoType_J] = {200.0f, 64.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_Z] = {255.0f, 64.0f, 160.0f, 255.0f},
-                [TtsTetraminoType_S] = {64.0f, 255.0f, 200.0f, 255.0f},
+                [TetrisPieceType_I] = {255.0f, 64.0f, 64.0f, 255.0f},
+                [TetrisPieceType_O] = {64.0f, 255.0f, 64.0f, 255.0f},
+                [TetrisPieceType_T] = {64.0f, 128.0f, 255.0f, 255.0f},
+                [TetrisPieceType_L] = {255.0f, 200.0f, 64.0f, 255.0f},
+                [TetrisPieceType_J] = {200.0f, 64.0f, 255.0f, 255.0f},
+                [TetrisPieceType_Z] = {255.0f, 64.0f, 160.0f, 255.0f},
+                [TetrisPieceType_S] = {64.0f, 255.0f, 200.0f, 255.0f},
             }
         },
         {
             {
-                [TtsTetraminoType_I] = {0.0f, 200.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_O] = {255.0f, 180.0f, 0.0f, 255.0f},
-                [TtsTetraminoType_T] = {255.0f, 0.0f, 200.0f, 255.0f},
-                [TtsTetraminoType_L] = {120.0f, 255.0f, 0.0f, 255.0f},
-                [TtsTetraminoType_J] = {0.0f, 100.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_Z] = {255.0f, 50.0f, 0.0f, 255.0f},
-                [TtsTetraminoType_S] = {0.0f, 255.0f, 150.0f, 255.0f},
+                [TetrisPieceType_I] = {0.0f, 200.0f, 255.0f, 255.0f},
+                [TetrisPieceType_O] = {255.0f, 180.0f, 0.0f, 255.0f},
+                [TetrisPieceType_T] = {255.0f, 0.0f, 200.0f, 255.0f},
+                [TetrisPieceType_L] = {120.0f, 255.0f, 0.0f, 255.0f},
+                [TetrisPieceType_J] = {0.0f, 100.0f, 255.0f, 255.0f},
+                [TetrisPieceType_Z] = {255.0f, 50.0f, 0.0f, 255.0f},
+                [TetrisPieceType_S] = {0.0f, 255.0f, 150.0f, 255.0f},
             }
         },
         {
             {
-                [TtsTetraminoType_I] = {255.0f, 0.0f, 0.0f, 255.0f},
-                [TtsTetraminoType_O] = {0.0f, 255.0f, 0.0f, 255.0f},
-                [TtsTetraminoType_T] = {0.0f, 0.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_L] = {255.0f, 255.0f, 0.0f, 255.0f},
-                [TtsTetraminoType_J] = {255.0f, 0.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_Z] = {0.0f, 255.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_S] = {255.0f, 140.0f, 0.0f, 255.0f},
+                [TetrisPieceType_I] = {255.0f, 0.0f, 0.0f, 255.0f},
+                [TetrisPieceType_O] = {0.0f, 255.0f, 0.0f, 255.0f},
+                [TetrisPieceType_T] = {0.0f, 0.0f, 255.0f, 255.0f},
+                [TetrisPieceType_L] = {255.0f, 255.0f, 0.0f, 255.0f},
+                [TetrisPieceType_J] = {255.0f, 0.0f, 255.0f, 255.0f},
+                [TetrisPieceType_Z] = {0.0f, 255.0f, 255.0f, 255.0f},
+                [TetrisPieceType_S] = {255.0f, 140.0f, 0.0f, 255.0f},
             }
         },
         {
             {
-                [TtsTetraminoType_I] = {255.0f, 120.0f, 120.0f, 255.0f},
-                [TtsTetraminoType_O] = {120.0f, 255.0f, 120.0f, 255.0f},
-                [TtsTetraminoType_T] = {120.0f, 120.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_L] = {255.0f, 200.0f, 120.0f, 255.0f},
-                [TtsTetraminoType_J] = {200.0f, 120.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_Z] = {255.0f, 120.0f, 200.0f, 255.0f},
-                [TtsTetraminoType_S] = {120.0f, 255.0f, 200.0f, 255.0f},
+                [TetrisPieceType_I] = {255.0f, 120.0f, 120.0f, 255.0f},
+                [TetrisPieceType_O] = {120.0f, 255.0f, 120.0f, 255.0f},
+                [TetrisPieceType_T] = {120.0f, 120.0f, 255.0f, 255.0f},
+                [TetrisPieceType_L] = {255.0f, 200.0f, 120.0f, 255.0f},
+                [TetrisPieceType_J] = {200.0f, 120.0f, 255.0f, 255.0f},
+                [TetrisPieceType_Z] = {255.0f, 120.0f, 200.0f, 255.0f},
+                [TetrisPieceType_S] = {120.0f, 255.0f, 200.0f, 255.0f},
             }
         },
         {
             {
-                [TtsTetraminoType_I] = {0.0f, 255.0f, 200.0f, 255.0f},
-                [TtsTetraminoType_O] = {255.0f, 220.0f, 0.0f, 255.0f},
-                [TtsTetraminoType_T] = {180.0f, 0.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_L] = {255.0f, 100.0f, 0.0f, 255.0f},
-                [TtsTetraminoType_J] = {0.0f, 140.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_Z] = {255.0f, 0.0f, 120.0f, 255.0f},
-                [TtsTetraminoType_S] = {0.0f, 255.0f, 80.0f, 255.0f},
+                [TetrisPieceType_I] = {0.0f, 255.0f, 200.0f, 255.0f},
+                [TetrisPieceType_O] = {255.0f, 220.0f, 0.0f, 255.0f},
+                [TetrisPieceType_T] = {180.0f, 0.0f, 255.0f, 255.0f},
+                [TetrisPieceType_L] = {255.0f, 100.0f, 0.0f, 255.0f},
+                [TetrisPieceType_J] = {0.0f, 140.0f, 255.0f, 255.0f},
+                [TetrisPieceType_Z] = {255.0f, 0.0f, 120.0f, 255.0f},
+                [TetrisPieceType_S] = {0.0f, 255.0f, 80.0f, 255.0f},
             }
         },
         {
             {
-                [TtsTetraminoType_I] = {173.0f, 255.0f, 47.0f, 255.0f},
-                [TtsTetraminoType_O] = {255.0f, 105.0f, 180.0f, 255.0f},
-                [TtsTetraminoType_T] = {65.0f, 105.0f, 225.0f, 255.0f},
-                [TtsTetraminoType_L] = {255.0f, 165.0f, 0.0f, 255.0f},
-                [TtsTetraminoType_J] = {138.0f, 43.0f, 226.0f, 255.0f},
-                [TtsTetraminoType_Z] = {255.0f, 69.0f, 0.0f, 255.0f},
-                [TtsTetraminoType_S] = {0.0f, 255.0f, 180.0f, 255.0f},
+                [TetrisPieceType_I] = {173.0f, 255.0f, 47.0f, 255.0f},
+                [TetrisPieceType_O] = {255.0f, 105.0f, 180.0f, 255.0f},
+                [TetrisPieceType_T] = {65.0f, 105.0f, 225.0f, 255.0f},
+                [TetrisPieceType_L] = {255.0f, 165.0f, 0.0f, 255.0f},
+                [TetrisPieceType_J] = {138.0f, 43.0f, 226.0f, 255.0f},
+                [TetrisPieceType_Z] = {255.0f, 69.0f, 0.0f, 255.0f},
+                [TetrisPieceType_S] = {0.0f, 255.0f, 180.0f, 255.0f},
             }
         },
         {
             {
-                [TtsTetraminoType_I] = {255.0f, 80.0f, 0.0f, 255.0f},
-                [TtsTetraminoType_O] = {0.0f, 200.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_T] = {200.0f, 0.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_L] = {255.0f, 255.0f, 80.0f, 255.0f},
-                [TtsTetraminoType_J] = {0.0f, 255.0f, 120.0f, 255.0f},
-                [TtsTetraminoType_Z] = {255.0f, 0.0f, 0.0f, 255.0f},
-                [TtsTetraminoType_S] = {80.0f, 160.0f, 255.0f, 255.0f},
+                [TetrisPieceType_I] = {255.0f, 80.0f, 0.0f, 255.0f},
+                [TetrisPieceType_O] = {0.0f, 200.0f, 255.0f, 255.0f},
+                [TetrisPieceType_T] = {200.0f, 0.0f, 255.0f, 255.0f},
+                [TetrisPieceType_L] = {255.0f, 255.0f, 80.0f, 255.0f},
+                [TetrisPieceType_J] = {0.0f, 255.0f, 120.0f, 255.0f},
+                [TetrisPieceType_Z] = {255.0f, 0.0f, 0.0f, 255.0f},
+                [TetrisPieceType_S] = {80.0f, 160.0f, 255.0f, 255.0f},
             }
         },
         {
             {
-                [TtsTetraminoType_I] = {0.0f, 255.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_O] = {255.0f, 200.0f, 0.0f, 255.0f},
-                [TtsTetraminoType_T] = {255.0f, 0.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_L] = {0.0f, 255.0f, 120.0f, 255.0f},
-                [TtsTetraminoType_J] = {255.0f, 80.0f, 80.0f, 255.0f},
-                [TtsTetraminoType_Z] = {120.0f, 80.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_S] = {80.0f, 255.0f, 80.0f, 255.0f},
+                [TetrisPieceType_I] = {0.0f, 255.0f, 255.0f, 255.0f},
+                [TetrisPieceType_O] = {255.0f, 200.0f, 0.0f, 255.0f},
+                [TetrisPieceType_T] = {255.0f, 0.0f, 255.0f, 255.0f},
+                [TetrisPieceType_L] = {0.0f, 255.0f, 120.0f, 255.0f},
+                [TetrisPieceType_J] = {255.0f, 80.0f, 80.0f, 255.0f},
+                [TetrisPieceType_Z] = {120.0f, 80.0f, 255.0f, 255.0f},
+                [TetrisPieceType_S] = {80.0f, 255.0f, 80.0f, 255.0f},
             }
         },
         {
             {
-                [TtsTetraminoType_I] = {255.0f, 64.0f, 128.0f, 255.0f},
-                [TtsTetraminoType_O] = {64.0f, 255.0f, 192.0f, 255.0f},
-                [TtsTetraminoType_T] = {192.0f, 64.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_L] = {255.0f, 192.0f, 64.0f, 255.0f},
-                [TtsTetraminoType_J] = {64.0f, 128.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_Z] = {255.0f, 64.0f, 64.0f, 255.0f},
-                [TtsTetraminoType_S] = {128.0f, 255.0f, 64.0f, 255.0f},
+                [TetrisPieceType_I] = {255.0f, 64.0f, 128.0f, 255.0f},
+                [TetrisPieceType_O] = {64.0f, 255.0f, 192.0f, 255.0f},
+                [TetrisPieceType_T] = {192.0f, 64.0f, 255.0f, 255.0f},
+                [TetrisPieceType_L] = {255.0f, 192.0f, 64.0f, 255.0f},
+                [TetrisPieceType_J] = {64.0f, 128.0f, 255.0f, 255.0f},
+                [TetrisPieceType_Z] = {255.0f, 64.0f, 64.0f, 255.0f},
+                [TetrisPieceType_S] = {128.0f, 255.0f, 64.0f, 255.0f},
             }
         },
         {
             {
-                [TtsTetraminoType_I] = {0.0f, 180.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_O] = {255.0f, 220.0f, 120.0f, 255.0f},
-                [TtsTetraminoType_T] = {200.0f, 120.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_L] = {255.0f, 120.0f, 60.0f, 255.0f},
-                [TtsTetraminoType_J] = {120.0f, 255.0f, 200.0f, 255.0f},
-                [TtsTetraminoType_Z] = {255.0f, 80.0f, 140.0f, 255.0f},
-                [TtsTetraminoType_S] = {120.0f, 255.0f, 120.0f, 255.0f},
+                [TetrisPieceType_I] = {0.0f, 180.0f, 255.0f, 255.0f},
+                [TetrisPieceType_O] = {255.0f, 220.0f, 120.0f, 255.0f},
+                [TetrisPieceType_T] = {200.0f, 120.0f, 255.0f, 255.0f},
+                [TetrisPieceType_L] = {255.0f, 120.0f, 60.0f, 255.0f},
+                [TetrisPieceType_J] = {120.0f, 255.0f, 200.0f, 255.0f},
+                [TetrisPieceType_Z] = {255.0f, 80.0f, 140.0f, 255.0f},
+                [TetrisPieceType_S] = {120.0f, 255.0f, 120.0f, 255.0f},
             }
         },
         {
             {
-                [TtsTetraminoType_I] = {255.0f, 0.0f, 120.0f, 255.0f},
-                [TtsTetraminoType_O] = {0.0f, 255.0f, 200.0f, 255.0f},
-                [TtsTetraminoType_T] = {120.0f, 0.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_L] = {255.0f, 200.0f, 0.0f, 255.0f},
-                [TtsTetraminoType_J] = {0.0f, 120.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_Z] = {255.0f, 60.0f, 0.0f, 255.0f},
-                [TtsTetraminoType_S] = {120.0f, 255.0f, 0.0f, 255.0f},
+                [TetrisPieceType_I] = {255.0f, 0.0f, 120.0f, 255.0f},
+                [TetrisPieceType_O] = {0.0f, 255.0f, 200.0f, 255.0f},
+                [TetrisPieceType_T] = {120.0f, 0.0f, 255.0f, 255.0f},
+                [TetrisPieceType_L] = {255.0f, 200.0f, 0.0f, 255.0f},
+                [TetrisPieceType_J] = {0.0f, 120.0f, 255.0f, 255.0f},
+                [TetrisPieceType_Z] = {255.0f, 60.0f, 0.0f, 255.0f},
+                [TetrisPieceType_S] = {120.0f, 255.0f, 0.0f, 255.0f},
             }
         },
         {
             {
-                [TtsTetraminoType_I] = {120.0f, 255.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_O] = {255.0f, 255.0f, 120.0f, 255.0f},
-                [TtsTetraminoType_T] = {255.0f, 120.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_L] = {120.0f, 255.0f, 120.0f, 255.0f},
-                [TtsTetraminoType_J] = {255.0f, 120.0f, 120.0f, 255.0f},
-                [TtsTetraminoType_Z] = {120.0f, 120.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_S] = {255.0f, 180.0f, 120.0f, 255.0f},
+                [TetrisPieceType_I] = {120.0f, 255.0f, 255.0f, 255.0f},
+                [TetrisPieceType_O] = {255.0f, 255.0f, 120.0f, 255.0f},
+                [TetrisPieceType_T] = {255.0f, 120.0f, 255.0f, 255.0f},
+                [TetrisPieceType_L] = {120.0f, 255.0f, 120.0f, 255.0f},
+                [TetrisPieceType_J] = {255.0f, 120.0f, 120.0f, 255.0f},
+                [TetrisPieceType_Z] = {120.0f, 120.0f, 255.0f, 255.0f},
+                [TetrisPieceType_S] = {255.0f, 180.0f, 120.0f, 255.0f},
             }
         },
         {
             {
-                [TtsTetraminoType_I] = {0.0f, 255.0f, 100.0f, 255.0f},
-                [TtsTetraminoType_O] = {255.0f, 200.0f, 0.0f, 255.0f},
-                [TtsTetraminoType_T] = {200.0f, 0.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_L] = {255.0f, 80.0f, 80.0f, 255.0f},
-                [TtsTetraminoType_J] = {0.0f, 150.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_Z] = {255.0f, 0.0f, 0.0f, 255.0f},
-                [TtsTetraminoType_S] = {120.0f, 255.0f, 0.0f, 255.0f},
+                [TetrisPieceType_I] = {0.0f, 255.0f, 100.0f, 255.0f},
+                [TetrisPieceType_O] = {255.0f, 200.0f, 0.0f, 255.0f},
+                [TetrisPieceType_T] = {200.0f, 0.0f, 255.0f, 255.0f},
+                [TetrisPieceType_L] = {255.0f, 80.0f, 80.0f, 255.0f},
+                [TetrisPieceType_J] = {0.0f, 150.0f, 255.0f, 255.0f},
+                [TetrisPieceType_Z] = {255.0f, 0.0f, 0.0f, 255.0f},
+                [TetrisPieceType_S] = {120.0f, 255.0f, 0.0f, 255.0f},
             }
         },
         {
             {
-                [TtsTetraminoType_I] = {255.0f, 50.0f, 200.0f, 255.0f},
-                [TtsTetraminoType_O] = {50.0f, 255.0f, 200.0f, 255.0f},
-                [TtsTetraminoType_T] = {200.0f, 50.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_L] = {255.0f, 200.0f, 50.0f, 255.0f},
-                [TtsTetraminoType_J] = {50.0f, 150.0f, 255.0f, 255.0f},
-                [TtsTetraminoType_Z] = {255.0f, 50.0f, 50.0f, 255.0f},
-                [TtsTetraminoType_S] = {50.0f, 255.0f, 50.0f, 255.0f},
+                [TetrisPieceType_I] = {255.0f, 50.0f, 200.0f, 255.0f},
+                [TetrisPieceType_O] = {50.0f, 255.0f, 200.0f, 255.0f},
+                [TetrisPieceType_T] = {200.0f, 50.0f, 255.0f, 255.0f},
+                [TetrisPieceType_L] = {255.0f, 200.0f, 50.0f, 255.0f},
+                [TetrisPieceType_J] = {50.0f, 150.0f, 255.0f, 255.0f},
+                [TetrisPieceType_Z] = {255.0f, 50.0f, 50.0f, 255.0f},
+                [TetrisPieceType_S] = {50.0f, 255.0f, 50.0f, 255.0f},
             }
         }
     };
 
-    static_assert(TTS_ARRAYCOUNT(schemes) == TTS_LEVEL_COUNT_PLUS_ONE);
+    static_assert(BASE_ARRAYCOUNT(schemes) == TETRIS_LEVEL_COUNT_PLUS_ONE);
 
-    TTS_ASSERT(level < TTS_LEVEL_COUNT_PLUS_ONE);
+    BASE_ASSERT(level < TETRIS_LEVEL_COUNT_PLUS_ONE);
 
-    TtsColorScheme result = schemes[level];
-
-    return result;
-}
-
-TtsColor ttsGetTetraminoColor(TtsTetris *tetris, TtsTetraminoType tetraminoType) {
-    TTS_ASSERT(tetraminoType > TtsTetraminoType_None);
-    TTS_ASSERT(tetraminoType < TtsTetraminoType_Count);
-
-    TtsColorScheme scheme = ttsGetColorScheme(tetris);
-
-    TtsColor result = scheme.colors[tetraminoType];
+    TetrisColorScheme result = schemes[level];
 
     return result;
 }
 
-TtsString ttsGetButtonLabel(TtsTetris *tetris, TtsButtonType buttonType) {
-    TTS_ASSERT(buttonType > TtsButtonType_None);
-    TTS_ASSERT(buttonType < TtsButtonType_Count);
+static BaseColor tetrisGetPieceColor(Tetris *tetris, TetrisPieceType pieceType) {
+    BASE_ASSERT(pieceType > TetrisPieceType_None);
+    BASE_ASSERT(pieceType < TetrisPieceType_Count);
 
-    TtsString result = {0};
+    TetrisColorScheme scheme = tetrisGetColorScheme(tetris);
+
+    BaseColor result = scheme.colors[pieceType];
+
+    return result;
+}
+
+static BaseString tetrisGetButtonLabel(Tetris *tetris, TetrisButtonType buttonType) {
+    BASE_ASSERT(buttonType > TetrisButtonType_None);
+    BASE_ASSERT(buttonType < TetrisButtonType_Count);
+
+    BaseString result = {0};
 
     switch (buttonType) {
-        case TtsButtonType_New: {
-            result = TTS_MAKE_STRING("New");
+        case TetrisButtonType_New: {
+            result = BASE_MAKE_STRING("New");
         } break;
-        case TtsButtonType_Resume: {
-            result = TTS_MAKE_STRING("Resume");
+        case TetrisButtonType_Resume: {
+            result = BASE_MAKE_STRING("Resume");
         } break;
-        case TtsButtonType_Sound: {
-            result = tetris->effectsOff ? TTS_MAKE_STRING("Sound on") : TTS_MAKE_STRING("Sound off");
+        case TetrisButtonType_Sound: {
+            result = tetris->effectsOff ? BASE_MAKE_STRING("Sound on") : BASE_MAKE_STRING("Sound off");
         } break;
-        case TtsButtonType_Music: {
-            result = tetris->musicOff ? TTS_MAKE_STRING("Music on") : TTS_MAKE_STRING("Music off");
+        case TetrisButtonType_Music: {
+            result = tetris->musicOff ? BASE_MAKE_STRING("Music on") : BASE_MAKE_STRING("Music off");
         } break;
-        case TtsButtonType_Quit: {
-            result =  TTS_MAKE_STRING("Quit");
+        case TetrisButtonType_Quit: {
+            result =  BASE_MAKE_STRING("Quit");
         } break;
     }
 
     return result;
 }
 
-TtsTetraminoType ttsGetButtonTetraminoType (TtsButtonType buttonType) {
-    TTS_ASSERT(buttonType > TtsButtonType_None);
-    TTS_ASSERT(buttonType < TtsButtonType_Count);
+static TetrisPieceType tetrisGetButtonPieceType (TetrisButtonType buttonType) {
+    BASE_ASSERT(buttonType > TetrisButtonType_None);
+    BASE_ASSERT(buttonType < TetrisButtonType_Count);
 
-    TtsTetraminoType types[TtsButtonType_Count] = {
-        [TtsButtonType_New] = TtsTetraminoType_I,
-        [TtsButtonType_Resume] = TtsTetraminoType_O,
-        [TtsButtonType_Sound] = TtsTetraminoType_L,
-        [TtsButtonType_Music] = TtsTetraminoType_S,
-        [TtsButtonType_Quit] = TtsTetraminoType_Z,
+    TetrisPieceType types[TetrisButtonType_Count] = {
+        [TetrisButtonType_New] = TetrisPieceType_I,
+        [TetrisButtonType_Resume] = TetrisPieceType_O,
+        [TetrisButtonType_Sound] = TetrisPieceType_L,
+        [TetrisButtonType_Music] = TetrisPieceType_S,
+        [TetrisButtonType_Quit] = TetrisPieceType_Z,
     };
 
-    TtsTetraminoType result = types[buttonType];
+    TetrisPieceType result = types[buttonType];
 
     return result;
 }
 
-static void ttsDrawColorTrapezoid(
+static void tetrisDrawColorTrapezoid(
+    Platform *platform,
     float x0, float y0,
     float x1, float y1,
     float x2, float y2,
     float x3, float y3,
-    TtsColor color,
-    TtsPlatform *platform
+    BaseColor color
 ) {
     platformDrawColorTriangle(
+        platform,
         x0, y0,
         x1, y1,
         x2, y2,
         0.0f, 0.0f,
-        color,
-        platform
+        color.r, color.g, color.b, color.a
     );
 
     platformDrawColorTriangle(
+        platform,
+
         x2, y2,
         x3, y3,
         x0, y0,
         0.0f, 0.0f,
-        color,
-        platform
+        color.r, color.g, color.b, color.a
     );
 }
 
-static bool ttsHasWon(TtsTetris *tetris) {
-    bool result = (tetris->clearedLines / TTS_LINES_PER_LEVEL) + 1 >= TTS_LEVEL_COUNT_PLUS_ONE;
+static bool tetrisHasWon(Tetris *tetris) {
+    bool result = (tetris->clearedRows / TETRIS_LINES_PER_LEVEL) + 1 >= TETRIS_LEVEL_COUNT_PLUS_ONE;
 
     return result;
 }
 
-static void ttsDrawColorQuad(
+static void tetrisDrawColorQuad(
+    Platform *platform,
     float x, float y,
     float width, float height,
-    TtsColor color,
-    TtsPlatform *platform
+    BaseColor color
 ) {
-    ttsDrawColorTrapezoid(
+    tetrisDrawColorTrapezoid(
+        platform,
         x, y,
         x + width, y,
         x + width, y + height,
         x, y + height,
-        color,
-        platform
+        color
     );
 }
 
-TtsColor ttsMultiplyColor(TtsColor color, float multiplier) {
-    TtsColor result  = color;
+static BaseColor tetrisMultiplyColor(BaseColor color, float multiplier) {
+    BaseColor result  = color;
 
     result.r = ((result.r / 255.0f) * multiplier) * 255.0f;
     result.g = ((result.g / 255.0f) * multiplier) * 255.0f;
@@ -536,85 +459,85 @@ TtsColor ttsMultiplyColor(TtsColor color, float multiplier) {
     return result;
 }
 
-static void ttsDrawCellLikeQuad(
-    TtsTetris *tetris,
+static void tetrisDrawCellLikeQuad(
+    Platform *platform,
     float x, float y,
     float width, float height,
     float margin,
-    TtsColor color
+    BaseColor color
 )  {
     float internalWidth = width - (margin * 2.0f);
     float internalHeight = height - (margin * 2.0f);
     float internalX = x + margin;
     float internalY = y + margin;
-    ttsDrawColorQuad(
+    tetrisDrawColorQuad(
+        platform,
         internalX, internalY,
         internalWidth, internalHeight,
-        color,
-        tetris->platform
+        color
     );
 
     float lightMultiplier = 1.5f;
 
-    ttsDrawColorTrapezoid(
+    tetrisDrawColorTrapezoid(
+        platform,
         x, y,
         internalX, internalY,
         internalX , internalY + internalHeight,
         x, y + height,
-        ttsMultiplyColor(color, lightMultiplier),
-        tetris->platform
+        tetrisMultiplyColor(color, lightMultiplier)
     );
 
-    ttsDrawColorTrapezoid(
+    tetrisDrawColorTrapezoid(
+        platform,
         x, y,
         x + width, y,
         internalX + internalWidth, internalY,
         internalX, internalY,
-        ttsMultiplyColor(color, lightMultiplier),
-        tetris->platform
+        tetrisMultiplyColor(color, lightMultiplier)
     );
 
     float darkMultiplier = 0.50f;
 
-    ttsDrawColorTrapezoid(
+    tetrisDrawColorTrapezoid(
+        platform,
         x + width, y,
         x + width, y + height,
         internalX + internalWidth, internalY + internalHeight,
         internalX + internalWidth, internalY,
-        ttsMultiplyColor(color, darkMultiplier),
-        tetris->platform
+        tetrisMultiplyColor(color, darkMultiplier)
     );
 
-    ttsDrawColorTrapezoid(
+    tetrisDrawColorTrapezoid(
+        platform,
         internalX, internalY + internalHeight,
         internalX + internalWidth, internalY + internalHeight,
         x + width, y + height,
         x, y + height,
-        ttsMultiplyColor(color, darkMultiplier),
-        tetris->platform
+        tetrisMultiplyColor(color, darkMultiplier)
     );
 }
 
-static float ttsGetCellMargin(float cellSide) {
+static float tetrisGetCellMargin(float cellSide) {
     float internalSide = cellSide * 0.7f;
     float result = (cellSide - internalSide) / 2.0f;
 
     return result;
 }
 
-static void ttsDrawCell(
-    TtsTetris *tetris,
+static void tetrisDrawCell(
+    Platform *platform,
     int32_t row, int32_t column,
-    TtsColor color,
+    BaseColor color,
     float cellSide,
     float gridX, float gridY
 )  {
     float x = gridX + (column * cellSide);
     float y = gridY + (row * cellSide);
-    float margin = ttsGetCellMargin(cellSide);
+    float margin = tetrisGetCellMargin(cellSide);
 
-    ttsDrawCellLikeQuad(
-        tetris,
+    tetrisDrawCellLikeQuad(
+        platform,
         x,  y,
         cellSide, cellSide,
         margin,
@@ -622,39 +545,39 @@ static void ttsDrawCell(
     );
 }
 
-static void ttsStartMusic(TtsTetris *tetris, TtsMusic music) {
-    TTS_ASSERT(music > TtsMusic_None);
-    TTS_ASSERT(music < TtsMusic_Count);
+static void tetrisStartMusic(Tetris *tetris, Platform *platform, TetrisMusic music) {
+    BASE_ASSERT(music > TetrisMusic_None);
+    BASE_ASSERT(music < TetrisMusic_Count);
 
-    platformPlaySound(tetris, tetris->musics[music], TtsSoundType_Music);
+    platformPlaySound(platform, tetris->musics[music], PlatformSoundType_Music);
 }
 
-static TtsRotation ttsGetRotation(TtsRotationType rotationType) {
-    TTS_ASSERT(rotationType > TtsRotationType_None);
-    TTS_ASSERT(rotationType < TtsRotationType_Count);
+static TetrisRotation tetrisGetRotation(TetrisRotationType rotationType) {
+    BASE_ASSERT(rotationType > TetrisRotationType_None);
+    BASE_ASSERT(rotationType < TetrisRotationType_Count);
 
-    TtsRotation rotations[TtsRotationType_Count] = {
-        [TtsRotationType_S] = {false, false},
-        [TtsRotationType_R] = {true, false},
-        [TtsRotationType_2] = {false, true},
-        [TtsRotationType_L] = {true, true},
+    TetrisRotation rotations[TetrisRotationType_Count] = {
+        [TetrisRotationType_S] = {false, false},
+        [TetrisRotationType_R] = {true, false},
+        [TetrisRotationType_2] = {false, true},
+        [TetrisRotationType_L] = {true, true},
     };
 
-    TtsRotation rotation = rotations[rotationType];
+    TetrisRotation rotation = rotations[rotationType];
 
     return rotation;
 }
 
-static TtsTetraminoPattern ttsGetRotatedCells(TtsTetraminoType tetraminoType, TtsRotationType rotationType) {
-    TtsTetraminoPattern pattern = ttsGetTetraminoPattern(tetraminoType);
+static TetrisPiecePattern tetrisGetRotatedCells(TetrisPieceType pieceType, TetrisRotationType rotationType) {
+    TetrisPiecePattern pattern = tetrisGetPiecePattern(pieceType);
 
-    TtsRotation rotation = ttsGetRotation(rotationType);
+    TetrisRotation rotation = tetrisGetRotation(rotationType);
 
-    TtsTetraminoPattern result = {0};
+    TetrisPiecePattern result = {0};
 
-    for (uint32_t cellIndex = 0; cellIndex < TTS_ARRAYCOUNT(pattern.cellCenters); cellIndex++) {
-        TtsFloatCoords srcCoords = pattern.cellCenters[cellIndex];
-        TtsFloatCoords rotatedCoords = srcCoords;
+    for (uint32_t cellIndex = 0; cellIndex < BASE_ARRAYCOUNT(pattern.cellCenters); cellIndex++) {
+        TetrisFloatCoords srcCoords = pattern.cellCenters[cellIndex];
+        TetrisFloatCoords rotatedCoords = srcCoords;
         if (rotation.flipCoordinates) {
             rotatedCoords.x = -srcCoords.y;
             rotatedCoords.y = srcCoords.x;
@@ -671,12 +594,12 @@ static TtsTetraminoPattern ttsGetRotatedCells(TtsTetraminoType tetraminoType, Tt
     return result;
 }
 
-static TtsTetramino ttsGetTetraminoCells(TtsTetraminoType tetraminoType, TtsRotationType rotationType, float x, float y) {
-    TtsTetraminoPattern rotatedCells = ttsGetRotatedCells(tetraminoType, rotationType);
-    TtsTetramino result = {0};
+static TetrisPiece tetrisGetPieceCells(TetrisPieceType pieceType, TetrisRotationType rotationType, float x, float y) {
+    TetrisPiecePattern rotatedCells = tetrisGetRotatedCells(pieceType, rotationType);
+    TetrisPiece result = {0};
 
-    for (uint32_t cellIndex = 0; cellIndex < TTS_ARRAYCOUNT(rotatedCells.cellCenters); cellIndex++) {
-        TtsFloatCoords cellCenter = rotatedCells.cellCenters[cellIndex];
+    for (uint32_t cellIndex = 0; cellIndex < BASE_ARRAYCOUNT(rotatedCells.cellCenters); cellIndex++) {
+        TetrisFloatCoords cellCenter = rotatedCells.cellCenters[cellIndex];
         result.cells[cellIndex].x = (int32_t)(x + cellCenter.x - 0.5f);
         result.cells[cellIndex].y = (int32_t)(y + cellCenter.y - 0.5f);
     }
@@ -684,8 +607,8 @@ static TtsTetramino ttsGetTetraminoCells(TtsTetraminoType tetraminoType, TtsRota
     return result;
 }
 
-static TtsTetramino ttsGetPlayerCells(TtsTetris *tetris) {
-    TtsTetramino result = ttsGetTetraminoCells(
+static TetrisPiece tetrisGetPlayerCells(Tetris *tetris) {
+    TetrisPiece result = tetrisGetPieceCells(
         tetris->playerType,
         tetris->playerRotationType,
         tetris->playerXInCells,
@@ -695,26 +618,26 @@ static TtsTetramino ttsGetPlayerCells(TtsTetris *tetris) {
     return result;
 }
 
-static bool ttsIsCellAvailable(TtsTetris *tetris, int32_t x, int32_t y) {
+static bool tetrisIsCellAvailable(Tetris *tetris, int32_t x, int32_t y) {
     bool result = false;
 
-    if (x >= 0 && x < TTS_ARRAYCOUNT(tetris->grid[0])) {
+    if (x >= 0 && x < BASE_ARRAYCOUNT(tetris->grid[0])) {
         if (y < 0) {
             result = true;
-        } else if (y < TTS_ARRAYCOUNT(tetris->grid)) {
-            result = tetris->grid[y][x] == TtsTetraminoType_None;
+        } else if (y < BASE_ARRAYCOUNT(tetris->grid)) {
+            result = tetris->grid[y][x] == TetrisPieceType_None;
         }
     }
 
     return result;
 }
 
-static bool ttsIsPositionAvailable(TtsTetris *tetris, TtsTetramino position) {
+static bool tetrisIsPositionAvailable(Tetris *tetris, TetrisPiece position) {
     bool result = true;
 
-    for (uint32_t cellIndex = 0; cellIndex < TTS_ARRAYCOUNT(position.cells); cellIndex++) {
-        TtsI32Coords cell = position.cells[cellIndex];
-        if (!ttsIsCellAvailable(tetris, cell.x, cell.y)) {
+    for (uint32_t cellIndex = 0; cellIndex < BASE_ARRAYCOUNT(position.cells); cellIndex++) {
+        TetrisI32Coords cell = position.cells[cellIndex];
+        if (!tetrisIsCellAvailable(tetris, cell.x, cell.y)) {
             result = false;
             break;
         }
@@ -723,10 +646,10 @@ static bool ttsIsPositionAvailable(TtsTetris *tetris, TtsTetramino position) {
     return result;
 }
 
-static TtsTetramino ttsOffsetCells(TtsTetramino cells, int32_t x, int32_t y) {
-    TtsTetramino result = cells;
+static TetrisPiece tetrisOffsetCells(TetrisPiece cells, int32_t x, int32_t y) {
+    TetrisPiece result = cells;
 
-    for (uint32_t cellIndex = 0; cellIndex < TTS_ARRAYCOUNT(result.cells); cellIndex++) {
+    for (uint32_t cellIndex = 0; cellIndex < BASE_ARRAYCOUNT(result.cells); cellIndex++) {
         result.cells[cellIndex].x += x;
         result.cells[cellIndex].y += y;
     }
@@ -734,15 +657,15 @@ static TtsTetramino ttsOffsetCells(TtsTetramino cells, int32_t x, int32_t y) {
     return result;
 }
 
-bool tryRotation(TtsTetris *tetris, TtsRotationType newRotation, float xOffsetInCells, float yOffsetInCells) {
+static bool tryRotation(Tetris *tetris, TetrisRotationType newRotation, float xOffsetInCells, float yOffsetInCells) {
     bool ok = false;
-    TtsTetramino targetCells = ttsGetTetraminoCells(
+    TetrisPiece targetCells = tetrisGetPieceCells(
         tetris->playerType,
         newRotation,
         tetris->playerXInCells + xOffsetInCells,
         tetris->playerYInCells + yOffsetInCells
     );
-    if (ttsIsPositionAvailable(tetris, targetCells)) {
+    if (tetrisIsPositionAvailable(tetris, targetCells)) {
         tetris->playerRotationType = newRotation;
         tetris->playerXInCells += xOffsetInCells;
         tetris->playerYInCells += yOffsetInCells;
@@ -752,44 +675,44 @@ bool tryRotation(TtsTetris *tetris, TtsRotationType newRotation, float xOffsetIn
     return ok;
 }
 
-void ttsRotatePlayer(TtsTetris *tetris, int32_t rotation) {
-    TTS_ASSERT(rotation >= -2);
-    TTS_ASSERT(rotation <= 2);
+static void tetrisRotatePlayer(Tetris *tetris, int32_t rotation) {
+    BASE_ASSERT(rotation >= -2);
+    BASE_ASSERT(rotation <= 2);
 
     int32_t newRotation = (int32_t)tetris->playerRotationType + rotation;
 
-    if ((newRotation) >= (int32_t)TtsRotationType_Count) {
-        newRotation = newRotation - (int32_t)TtsRotationType_Count + 1;
+    if ((newRotation) >= (int32_t)TetrisRotationType_Count) {
+        newRotation = newRotation - (int32_t)TetrisRotationType_Count + 1;
     }
 
     if ((newRotation) <= 0) {
-        newRotation =  (int32_t)TtsRotationType_Count - 1 - newRotation;
+        newRotation =  (int32_t)TetrisRotationType_Count - 1 - newRotation;
     }
 
-    bool ok = tryRotation(tetris, (TtsRotationType)newRotation, 0.0f, 0.0f);
+    bool ok = tryRotation(tetris, (TetrisRotationType)newRotation, 0.0f, 0.0f);
 
     if (!ok) {
-        ok = tryRotation(tetris, (TtsRotationType)newRotation, 1.0f, 0.0f);
+        ok = tryRotation(tetris, (TetrisRotationType)newRotation, 1.0f, 0.0f);
     }
 
     if (!ok) {
-        tryRotation(tetris, (TtsRotationType)newRotation, -1.0f, 0.0f);
+        tryRotation(tetris, (TetrisRotationType)newRotation, -1.0f, 0.0f);
     }
 }
 
-static TtsTetraminoType getNextType(TtsTetris *tetris) {
-    uint32_t random = ttsGetRandomNumber(tetris);
-    TtsTetraminoType result = (TtsTetraminoType)((random % (TtsTetraminoType_Count - 1)) + 1);
+static TetrisPieceType getNextType(Tetris *tetris) {
+    uint32_t random = tetrisGetRandomNumber(tetris);
+    TetrisPieceType result = (TetrisPieceType)((random % (TetrisPieceType_Count - 1)) + 1);
 
     return result;
 }
 
-static bool ttsIsRowFull(TtsTetris *tetris, int32_t row) {
+static bool tetrisIsRowFull(Tetris *tetris, int32_t row) {
     bool result = true;
 
-    if (row >= 0 && row < TTS_ROW_COUNT) {
-        for (int32_t column = 0; column < TTS_COLUMN_COUNT && result; column++) {
-            if (ttsIsCellAvailable(tetris, column, row)) {
+    if (row >= 0 && row < TETRIS_ROW_COUNT) {
+        for (int32_t column = 0; column < TETRIS_COLUMN_COUNT && result; column++) {
+            if (tetrisIsCellAvailable(tetris, column, row)) {
                 result = false;
             }
         }
@@ -798,12 +721,12 @@ static bool ttsIsRowFull(TtsTetris *tetris, int32_t row) {
     return result;
 }
 
-static bool ttsIsRowEmpty(TtsTetris *tetris, int32_t row) {
+static bool tetrisIsRowEmpty(Tetris *tetris, int32_t row) {
     bool result = true;
 
-    if (row >= 0 && row < TTS_ROW_COUNT) {
-        for (int32_t column = 0; column < TTS_COLUMN_COUNT && result; column++) {
-            if (!ttsIsCellAvailable(tetris, column, row)) {
+    if (row >= 0 && row < TETRIS_ROW_COUNT) {
+        for (int32_t column = 0; column < TETRIS_COLUMN_COUNT && result; column++) {
+            if (!tetrisIsCellAvailable(tetris, column, row)) {
                 result = false;
             }
         }
@@ -811,32 +734,32 @@ static bool ttsIsRowEmpty(TtsTetris *tetris, int32_t row) {
 
     return result;
 }
-static void ttsClearRow(TtsTetris *tetris, int32_t y) {
-    for (int32_t x = 0; x < TTS_COLUMN_COUNT; x++) {
-        TtsTetraminoType tetraminoType = tetris->grid[y][x];
-        if (tetraminoType) {
-            tetris->grid[y][x] = TtsTetraminoType_None;
+static void tetrisClearRow(Tetris *tetris, int32_t y) {
+    for (int32_t x = 0; x < TETRIS_COLUMN_COUNT; x++) {
+        TetrisPieceType pieceType = tetris->grid[y][x];
+        if (pieceType) {
+            tetris->grid[y][x] = TetrisPieceType_None;
         }
     }
 }
 
-static TtsPatternFeatures ttsGetPatternFeatures(TtsTetraminoType type) {
-    TtsTetraminoPattern pattern = ttsGetTetraminoPattern(type);
+static TetrisPatternFeatures tetrisGetPatternFeatures(TetrisPieceType type) {
+    TetrisPiecePattern pattern = tetrisGetPiecePattern(type);
 
     float minCenterX = 5.0f;
     float minCenterY = 5.0f;
     float maxCenterX = -5.0f;
     float maxCenterY = -5.0f;
 
-    for (uint32_t cellIndex = 0; cellIndex < TTS_ARRAYCOUNT(pattern.cellCenters); cellIndex++) {
-        TtsFloatCoords center = pattern.cellCenters[cellIndex];
-        minCenterX = TTS_MIN(center.x, minCenterX);
-        minCenterY = TTS_MIN(center.y, minCenterY);
-        maxCenterX = TTS_MAX(center.x, maxCenterX);
-        maxCenterY = TTS_MAX(center.y, maxCenterY);
+    for (uint32_t cellIndex = 0; cellIndex < BASE_ARRAYCOUNT(pattern.cellCenters); cellIndex++) {
+        TetrisFloatCoords center = pattern.cellCenters[cellIndex];
+        minCenterX = TETRIS_MIN(center.x, minCenterX);
+        minCenterY = TETRIS_MIN(center.y, minCenterY);
+        maxCenterX = TETRIS_MAX(center.x, maxCenterX);
+        maxCenterY = TETRIS_MAX(center.y, maxCenterY);
     }
 
-    TtsPatternFeatures result = {0};
+    TetrisPatternFeatures result = {0};
 
     result.minX = minCenterX - 0.5f;
     result.minY = minCenterY - 0.5f;
@@ -850,13 +773,13 @@ static TtsPatternFeatures ttsGetPatternFeatures(TtsTetraminoType type) {
     return result;
 }
 
-static float ttsGetSpawnX(TtsTetraminoType type) {
-    TTS_ASSERT(type > TtsTetraminoType_None);
-    TTS_ASSERT(type < TtsTetraminoType_Count);
+static float tetrisGetSpawnX(TetrisPieceType type) {
+    BASE_ASSERT(type > TetrisPieceType_None);
+    BASE_ASSERT(type < TetrisPieceType_Count);
 
-    TtsPatternFeatures features = ttsGetPatternFeatures(type);
+    TetrisPatternFeatures features = tetrisGetPatternFeatures(type);
 
-    float result = ((float)TTS_COLUMN_COUNT / 2.0f);
+    float result = ((float)TETRIS_COLUMN_COUNT / 2.0f);
 
     if ((int32_t)features.width % 2 != 0) {
         result -= 0.5f;
@@ -865,40 +788,40 @@ static float ttsGetSpawnX(TtsTetraminoType type) {
     return result;
 }
 
-static float ttsGetSpawnY(TtsTetraminoType type) {
-    TtsPatternFeatures features = ttsGetPatternFeatures(type);
+static float tetrisGetSpawnY(TetrisPieceType type) {
+    TetrisPatternFeatures features = tetrisGetPatternFeatures(type);
 
     float result = -features.maxY;
 
     return result;
 }
 
-static void spawnTetramino(TtsTetris *tetris) {
-    if (tetris->nextPlayerType == TtsTetraminoType_None) {
+static void tetrisSpawnPiece(Tetris *tetris) {
+    if (tetris->nextPlayerType == TetrisPieceType_None) {
         tetris->nextPlayerType = getNextType(tetris);
     }
 
     tetris->playerType = tetris->nextPlayerType;
     tetris->nextPlayerType = getNextType(tetris);
-    tetris->playerXInCells = ttsGetSpawnX(tetris->playerType);
-    tetris->playerYInCells = ttsGetSpawnY(tetris->playerType);
-    tetris->playerRotationType = TtsRotationType_None + 1;
-    tetris->horizontalDirection = TtsHorizontalDirection_None;
+    tetris->playerXInCells = tetrisGetSpawnX(tetris->playerType);
+    tetris->playerYInCells = tetrisGetSpawnY(tetris->playerType);
+    tetris->playerRotationType = TetrisRotationType_None + 1;
+    tetris->horizontalDirection = TetrisHorizontalDirection_None;
     tetris->playerXProgression = 0.0f;
     tetris->playerYProgression = 0.0f;
     tetris->isSoftDropping = false;
     tetris->isHardDropping = false;
 }
 
-static void ttsPlaySoundEffect(TtsTetris *tetris, TtsSoundEffect soundEffect) {
-    TTS_ASSERT(soundEffect > TtsSoundEffect_None);
-    TTS_ASSERT(soundEffect < TtsSoundEffect_Count);
+static void tetrisPlaySoundEffect(Tetris *tetris, Platform *platform, TetrisSoundEffect soundEffect) {
+    BASE_ASSERT(soundEffect > TetrisSoundEffect_None);
+    BASE_ASSERT(soundEffect < TetrisSoundEffect_Count);
 
     if (!tetris->effectsOff) {
-        platformPlaySound(tetris, tetris->soundEffects[soundEffect], TtsSoundType_Effect);
+        platformPlaySound(platform, tetris->soundEffects[soundEffect], PlatformSoundType_Effect);
     }
 }
-static void ttsAddClearedRows(TtsTetris *tetris, uint32_t rowsCount) {
+static void tetrisAddClearedRows(Tetris *tetris, Platform *platform, uint32_t rowsCount) {
     uint32_t scoreIncrement = 0;
     switch (rowsCount) {
         case 1: {
@@ -915,29 +838,29 @@ static void ttsAddClearedRows(TtsTetris *tetris, uint32_t rowsCount) {
         } break;
     }
 
-    if (tetris->clearedRowsCount > 0) {
-        tetris->secondsToFadeEnd = TTS_FADE_SECONDS;
-        ttsPlaySoundEffect(tetris, TtsSoundEffect_Whoosh);
+    if (tetris->fadingRowsCount > 0) {
+        tetris->secondsToFadeEnd = TETRIS_FADE_SECONDS;
+        tetrisPlaySoundEffect(tetris, platform, TetrisSoundEffect_Whoosh);
     }
 
     tetris->score += scoreIncrement;
-    uint32_t previousLevel = ttsGetCurrentLevel(tetris);
-    tetris->clearedLines += rowsCount;
-    uint32_t currentLevel = ttsGetCurrentLevel(tetris);
+    uint32_t previousLevel = tetrisGetCurrentLevel(tetris);
+    tetris->clearedRows += rowsCount;
+    uint32_t currentLevel = tetrisGetCurrentLevel(tetris);
 
     if (currentLevel > previousLevel) {
-        ttsPlaySoundEffect(tetris, TtsSoundEffect_LevelUp);
+        tetrisPlaySoundEffect(tetris, platform, TetrisSoundEffect_LevelUp);
     }
 
-    if (ttsHasWon(tetris)) {
-        ttsStartMusic(tetris, TtsMusic_Celebrate);
+    if (tetrisHasWon(tetris)) {
+        tetrisStartMusic(tetris, platform, TetrisMusic_Celebrate);
     }
 }
 
-static void ttsMoveVertically(TtsTetris *tetris) {
-    TtsTetramino playerCells = ttsGetPlayerCells(tetris);
-    TtsTetramino cellsBelow = ttsOffsetCells(playerCells, 0, 1);
-    if (ttsIsPositionAvailable(tetris, cellsBelow)) {
+static void tetrisMoveVertically(Tetris *tetris, Platform *platform) {
+    TetrisPiece playerCells = tetrisGetPlayerCells(tetris);
+    TetrisPiece cellsBelow = tetrisOffsetCells(playerCells, 0, 1);
+    if (tetrisIsPositionAvailable(tetris, cellsBelow)) {
         tetris->playerYProgression -= 1.0f;
         tetris->playerYInCells += 1.0f;
         if (tetris->isHardDropping) {
@@ -946,10 +869,10 @@ static void ttsMoveVertically(TtsTetris *tetris) {
             tetris->score += 1;
         }
     } else {
-        int32_t minY = TTS_ROW_COUNT;
+        int32_t minY = TETRIS_ROW_COUNT;
         int32_t maxY = -2;
-        for (uint32_t cellIndex = 0; cellIndex < TTS_ARRAYCOUNT(playerCells.cells); cellIndex++) {
-            TtsI32Coords cell = playerCells.cells[cellIndex];
+        for (uint32_t cellIndex = 0; cellIndex < BASE_ARRAYCOUNT(playerCells.cells); cellIndex++) {
+            TetrisI32Coords cell = playerCells.cells[cellIndex];
             if (cell.y < minY) {
                 minY = cell.y;
             }
@@ -957,8 +880,8 @@ static void ttsMoveVertically(TtsTetris *tetris) {
                 maxY = cell.y;
             }
             if (
-                cell.y >= 0 && cell.y < TTS_ARRAYCOUNT(tetris->grid)
-                && cell.x >= 0 && cell.x < TTS_ARRAYCOUNT(tetris->grid[0])
+                cell.y >= 0 && cell.y < BASE_ARRAYCOUNT(tetris->grid)
+                && cell.x >= 0 && cell.x < BASE_ARRAYCOUNT(tetris->grid[0])
             ){
                 tetris->grid[cell.y][cell.x] = tetris->playerType;
             }
@@ -966,28 +889,28 @@ static void ttsMoveVertically(TtsTetris *tetris) {
 
         if (minY < 0) {
             tetris->gameOver = true;
-            platformPauseSound(tetris, TtsSoundType_Music);
+            platformPauseSound(platform, PlatformSoundType_Music);
         }
 
         for (int32_t y = minY; y <= maxY; y++) {
             if (y >= 0) {
-                if (ttsIsRowFull(tetris, y)) {
-                    tetris->clearedRows[tetris->clearedRowsCount++] = y;
+                if (tetrisIsRowFull(tetris, y)) {
+                    tetris->fadingRows[tetris->fadingRowsCount++] = y;
                 }
             }
         }
-        TTS_ASSERT(tetris->clearedRowsCount <= TTS_ARRAYCOUNT(tetris->clearedRows));
+        BASE_ASSERT(tetris->fadingRowsCount <= BASE_ARRAYCOUNT(tetris->fadingRows));
 
-        ttsAddClearedRows(tetris, tetris->clearedRowsCount);
+        tetrisAddClearedRows(tetris, platform, tetris->fadingRowsCount);
 
-        spawnTetramino(tetris);
+        tetrisSpawnPiece(tetris);
     }
 }
 
-static TtsFloatCoords ttsCenterTetraminoInBox(TtsTetraminoType type, float x, float y, float width, float height, float cellSideInPixels) {
-    TtsPatternFeatures features = ttsGetPatternFeatures(type);
+static TetrisFloatCoords tetrisCenterPieceInBox(TetrisPieceType type, float x, float y, float width, float height, float cellSideInPixels) {
+    TetrisPatternFeatures features = tetrisGetPatternFeatures(type);
 
-    TtsFloatCoords result = {0};
+    TetrisFloatCoords result = {0};
 
     result.x = x + (width / 2.0f) - (features.esteticCenter.x * cellSideInPixels);
     result.y = y + (height / 2.0f) - (features.esteticCenter.y * cellSideInPixels);
@@ -995,32 +918,33 @@ static TtsFloatCoords ttsCenterTetraminoInBox(TtsTetraminoType type, float x, fl
     return result;
 }
 
-static void ttsDrawCenteredPattern(TtsTetris *tetris, TtsTetraminoType type, float boxX, float  boxY, float boxWidth,float  boxHeight,float  cellSideInPixels) {
-    TtsFloatCoords offset = ttsCenterTetraminoInBox(type, boxX, boxY, boxWidth, boxHeight, cellSideInPixels);
+static void tetrisDrawCenteredPattern(Tetris *tetris, Platform *platform, TetrisPieceType type, float boxX, float  boxY, float boxWidth,float  boxHeight,float  cellSideInPixels) {
+    TetrisFloatCoords offset = tetrisCenterPieceInBox(type, boxX, boxY, boxWidth, boxHeight, cellSideInPixels);
 
-    TtsColor color = ttsGetTetraminoColor(tetris, type);
+    BaseColor color = tetrisGetPieceColor(tetris, type);
 
-    TtsTetraminoPattern pattern = ttsGetTetraminoPattern(type);
+    TetrisPiecePattern pattern = tetrisGetPiecePattern(type);
 
-    for (uint32_t cellIndex = 0; cellIndex < TTS_ARRAYCOUNT(pattern.cellCenters); cellIndex++) {
-        TtsFloatCoords center = pattern.cellCenters[cellIndex];
+    for (uint32_t cellIndex = 0; cellIndex < BASE_ARRAYCOUNT(pattern.cellCenters); cellIndex++) {
+        TetrisFloatCoords center = pattern.cellCenters[cellIndex];
 
         float cellX = ((center.x - 0.5f) * cellSideInPixels) + offset.x;
         float cellY = ((center.y - 0.5f) * cellSideInPixels) + offset.y;
 
-        ttsDrawCellLikeQuad(
-            tetris,
+        tetrisDrawCellLikeQuad(
+            platform,
             cellX, cellY,
             cellSideInPixels, cellSideInPixels,
-            ttsGetCellMargin(cellSideInPixels),
+            tetrisGetCellMargin(cellSideInPixels),
             color
         );
     }
 }
 
-static void ttsDrawNextTetramino(TtsTetris * tetris, float boxX, float boxY, float boxWidth, float boxHeight, float cellSideInPixels) {
-    ttsDrawCenteredPattern(
+static void tetrisDrawNextPiece(Tetris * tetris, Platform *platform, float boxX, float boxY, float boxWidth, float boxHeight, float cellSideInPixels) {
+    tetrisDrawCenteredPattern(
         tetris,
+        platform,
         tetris->nextPlayerType,
         boxX, boxY,
         boxWidth, boxHeight,
@@ -1028,12 +952,12 @@ static void ttsDrawNextTetramino(TtsTetris * tetris, float boxX, float boxY, flo
     );
 }
 
-static float ttsGetStringWidthInPixels(TtsAtlas font, TtsString string) {
+static float tetrisGetStringWidthInPixels(TetrisAtlas font, BaseString string) {
     float result = 0.0f;
 
     for (uint32_t glyphIndex = 0; glyphIndex < string.size; glyphIndex++) {
         char c = string.text[glyphIndex];
-        TtsGlyph glyph = font.glyphs[c - TTS_FIRST_CODEPOINT];
+        TetrisGlyph glyph = font.glyphs[c - TETRIS_FIRST_CODEPOINT];
 
         if (glyphIndex == string.size - 1) {
             result += glyph.bitmapWidthInPixels;
@@ -1045,8 +969,8 @@ static float ttsGetStringWidthInPixels(TtsAtlas font, TtsString string) {
     return result;
 }
 
-static TtsString ttsFormatNumber(uint32_t number, char *dest, uint32_t destSize) {
-    TtsString result = {0};
+static BaseString tetrisFormatNumber(uint32_t number, char *dest, uint32_t destSize) {
+    BaseString result = {0};
 
     if (number == 0) {
         dest[destSize - 1] = '0';
@@ -1072,59 +996,61 @@ static TtsString ttsFormatNumber(uint32_t number, char *dest, uint32_t destSize)
     return result;
 }
 
-static bool ttsIsFading(TtsTetris *tetris) {
+static bool tetrisIsFading(Tetris *tetris) {
     return tetris->secondsToFadeEnd > 0.0f;
 }
 
-static bool ttsIsFalling(TtsTetris *tetris) {
-    return tetris->clearedRowsCount > 0 && !ttsIsFading(tetris);
+static bool tetrisAreRowsFalling(Tetris *tetris) {
+    return tetris->fadingRowsCount > 0 && !tetrisIsFading(tetris);
 }
 
-static bool shouldUpdate(TtsTetris *tetris) {
-    return !tetris->wasResizing && !tetris->menuOpen && !tetris->paused && tetris->clearedRowsCount == 0 && !tetris->gameOver && !ttsHasWon(tetris);
+static bool shouldUpdate(Tetris *tetris) {
+    return !tetris->wasResizing && !tetris->menuOpen && !tetris->paused && tetris->fadingRowsCount == 0 && !tetris->gameOver && !tetrisHasWon(tetris);
 }
 
-static void ttsCloseMenu(TtsTetris *tetris) {
+static void tetrisCloseMenu(Tetris *tetris) {
     tetris->menuOpen = false;
     tetris->paused = false;
-    tetris->pressedButton = TtsButtonType_None;
-    tetris->hoveredButton = TtsButtonType_None;
+    tetris->pressedButton = TetrisButtonType_None;
+    tetris->hoveredButton = TetrisButtonType_None;
 }
 
-static void ttsOpenMenu(TtsTetris *tetris) {
+static void tetrisOpenMenu(Tetris *tetris) {
     tetris->menuOpen = true;
-    tetris->hoveredButton = TtsButtonType_None + 1;
+    tetris->hoveredButton = TetrisButtonType_None + 1;
 }
 
-static void ttsNewGame(TtsTetris *tetris) {
+static void tetrisNewGame(Tetris *tetris, Platform *platform) {
     platformMemset(tetris->grid, 0, sizeof(tetris->grid));
     tetris->score = 0;
-    tetris->clearedLines = 0;
+    tetris->clearedRows = 0;
     tetris->isHardDropping = false;
     tetris->isSoftDropping = false;
     tetris->secondsToFadeEnd = 0;
-    tetris->clearedRowsCount = 0;
+    tetris->fadingRowsCount = 0;
     tetris->gameOver = false;
     tetris->gameOverAnimationSteps = 0;
     tetris->secondsToNextGameOverAnimation = 0.0f;
     tetris->secondsToOpenMenu = 0.0f;
 
+    tetrisSpawnPiece(tetris);
+
     if (!tetris->musicOff) {
-        ttsStartMusic(tetris, TtsMusic_Theme);
+        tetrisStartMusic(tetris, platform, TetrisMusic_Theme);
     }
-    ttsCloseMenu(tetris);
+    tetrisCloseMenu(tetris);
 }
 
-void ttsResumeGame(TtsTetris *tetris) {
-    if (tetris->gameOver || ttsHasWon(tetris)) {
-        ttsNewGame(tetris);
-    } else {ttsCloseMenu(tetris);}
+void tetrisResumeGame(Tetris *tetris, Platform *platform) {
+    if (tetris->gameOver || tetrisHasWon(tetris)) {
+        tetrisNewGame(tetris, platform);
+    } else {tetrisCloseMenu(tetris);}
 }
 
-static float ttsGetVelocityMultiplier(TtsTetris *tetris) {
+static float tetrisGetVelocityMultiplier(Tetris *tetris) {
     float result = 1.0f;
 
-    uint32_t currentLevel = ttsGetCurrentLevel(tetris);
+    uint32_t currentLevel = tetrisGetCurrentLevel(tetris);
 
     for (uint32_t level = 1; level < currentLevel; level++) {
         result *= 1.2f;
@@ -1133,9 +1059,9 @@ static float ttsGetVelocityMultiplier(TtsTetris *tetris) {
     return result;
 }
 
-void ttsDrawLabel(TtsTetris *tetris, float x, float y, float width, float height, float margin, TtsString label, TtsColor backgroundColor, TtsColor fontColor) {
-    ttsDrawCellLikeQuad(
-        tetris,
+static void tetrisDrawLabel(Tetris *tetris, Platform *platform, float x, float y, float width, float height, float margin, BaseString label, BaseColor backgroundColor, BaseColor fontColor) {
+    tetrisDrawCellLikeQuad(
+        platform,
         x, y,
         width, height,
         5.0f,
@@ -1144,8 +1070,9 @@ void ttsDrawLabel(TtsTetris *tetris, float x, float y, float width, float height
 
     float labelX = x + margin;
 
-    ttsDrawString(
+    tetrisDrawString(
         tetris,
+        platform,
         label,
         labelX,
         y,
@@ -1154,16 +1081,17 @@ void ttsDrawLabel(TtsTetris *tetris, float x, float y, float width, float height
     );
 }
 
-void ttsDrawNumberLabel(TtsTetris *tetris, float x, float y, float width, float height, float margin, TtsString label, TtsColor backgroundColor, TtsColor fontColor, uint32_t number) {
+static void tetrisDrawNumberLabel(Tetris *tetris, Platform *platform, float x, float y, float width, float height, float margin, BaseString label, BaseColor backgroundColor, BaseColor fontColor, uint32_t number) {
     {
-        ttsDrawLabel(tetris, x,  y,  width,  height,  margin,  label,  backgroundColor,  fontColor);
+        tetrisDrawLabel(tetris, platform, x,  y,  width,  height,  margin,  label,  backgroundColor,  fontColor);
         char buffer[256] = {0};
 
         float labelX = x + margin;
 
-        ttsDrawString(
+        tetrisDrawString(
             tetris,
-            ttsFormatNumber(number, buffer, TTS_ARRAYCOUNT(buffer)),
+            platform,
+            tetrisFormatNumber(number, buffer, BASE_ARRAYCOUNT(buffer)),
             labelX,
             y + tetris->atlas.lineHeightInPixels,
             1.0f,
@@ -1172,30 +1100,30 @@ void ttsDrawNumberLabel(TtsTetris *tetris, float x, float y, float width, float 
     }
 }
 
-void ttsDrawNextTetraminoLabel(TtsTetris *tetris, float x, float y, float width, float height, float margin,  TtsColor backgroundColor, TtsColor fontColor, float cellSideInPixels) {
+static void tetrisDrawNextPieceLabel(Tetris *tetris, Platform *platform, float x, float y, float width, float height, float margin,  BaseColor backgroundColor, BaseColor fontColor, float cellSideInPixels) {
     {
         float boxMargin = 5.0f;
 
-        TtsString next = TTS_MAKE_STRING("Next:");
+        BaseString next = BASE_MAKE_STRING("Next:");
 
-        ttsDrawLabel(
-            tetris, x, y, width, height, margin,
+        tetrisDrawLabel(
+            tetris, platform, x, y, width, height, margin,
             next,
             backgroundColor, fontColor
         );
 
         {
-            float strWidth = ttsGetStringWidthInPixels(tetris->atlas, next);
-            float tetraminoX = x + margin + strWidth;
-            float tetraminoY = y + boxMargin;
-            float tetraminoWidth = width - (boxMargin * 2.0f) - margin - strWidth;
-            float tetraminoHeight = height - (boxMargin * 2.0f);
-            ttsDrawNextTetramino(tetris, tetraminoX , tetraminoY,  tetraminoWidth,  tetraminoHeight,  cellSideInPixels);
+            float strWidth = tetrisGetStringWidthInPixels(tetris->atlas, next);
+            float pieceX = x + margin + strWidth;
+            float pieceY = y + boxMargin;
+            float pieceWidth = width - (boxMargin * 2.0f) - margin - strWidth;
+            float pieceHeight = height - (boxMargin * 2.0f);
+            tetrisDrawNextPiece(tetris, platform, pieceX , pieceY,  pieceWidth,  pieceHeight,  cellSideInPixels);
         }
     }
 }
 
-bool ttsPointInQuad(float x, float y, float top, float left, float width, float height) {
+static bool tetrisPointInQuad(float x, float y, float top, float left, float width, float height) {
     float right = left + width;
     float bottom = top + height;
 
@@ -1207,134 +1135,120 @@ bool ttsPointInQuad(float x, float y, float top, float left, float width, float 
     return result;
 }
 
-static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
-    if (tetris->frame == 0) {
-        spawnTetramino(tetris);
-        ttsStartMusic(tetris, TtsMusic_Theme);
-    }
+static TetrisLayout tetrisGetLayout(Tetris *tetris, PlatformInput input) {
+    TetrisLayout result = {0};
 
-    if (!tetris->menuOpen && ttsControlPressed(tetris, TtsControlType_P)) {
-        tetris->paused = !tetris->paused;
-    }
-
-    if (ttsControlPressed(tetris, TtsControlType_Esc)) {
-        if (tetris->menuOpen) {
-            ttsResumeGame(tetris);
-        } else {
-            ttsOpenMenu(tetris);
-        }
-    }
-
-    #ifdef TTS_ENABLE_CHEAT
-    uint32_t currentLevel =  ttsGetCurrentLevel(tetris);
-    if (ttsControlPressed(tetris, TtsControlType_L) && !ttsHasWon(tetris)) {
-        ttsAddClearedRows(tetris,  (currentLevel * TTS_LINES_PER_LEVEL) - tetris->clearedLines);
-    }
-    #endif
-
-    int32_t boardWidthInColumns = TTS_COLUMN_COUNT + 2;
-    int32_t boardWidthInRows = TTS_ROW_COUNT + 2;
-    float aspectRatio = ((float)tetris->windowWidth / boardWidthInColumns) / ((float)tetris->windowHeight / boardWidthInRows);
-    float cellSideInPixels = 0.0f;
+    int32_t boardWidthInColumns = TETRIS_COLUMN_COUNT + 2;
+    int32_t boardWidthInRows = TETRIS_ROW_COUNT + 2;
+    float aspectRatio = ((float)input.windowWidth / boardWidthInColumns) / ((float)input.windowHeight / boardWidthInRows);
+    result.cellSideInPixels = 0.0f;
     if (aspectRatio > 1.0f) {
-        cellSideInPixels = ((float)tetris->windowHeight * TTS_MAX_HEIGTH_RATIO) / boardWidthInRows;
+        result.cellSideInPixels = ((float)input.windowHeight * TETRIS_MAX_HEIGTH_RATIO) / boardWidthInRows;
     } else {
-        cellSideInPixels = ((float)tetris->windowWidth * TTS_MAX_WIDTH_RATIO) / boardWidthInColumns;
+        result.cellSideInPixels = ((float)input.windowWidth * TETRIS_MAX_WIDTH_RATIO) / boardWidthInColumns;
     }
 
-    float gridWidth = cellSideInPixels * TTS_COLUMN_COUNT;
-    float gridHeight = cellSideInPixels * TTS_ROW_COUNT;
-    float gridX = ((float)tetris->windowWidth - gridWidth) / 2.0f;
+    result.gridWidth = result.cellSideInPixels * TETRIS_COLUMN_COUNT;
+    result.gridHeight = result.cellSideInPixels * TETRIS_ROW_COUNT;
+    result.gridX = ((float)input.windowWidth - result.gridWidth) / 2.0f;
 
-    float gridMargin = 20.0f;
+    result.gridMargin = 20.0f;
 
-    float boxHeight = tetris->atlas.lineHeightInPixels * 2.0f;
-    float boxWidth = boxHeight * 3.0f;
+    result.boxHeight = tetris->atlas.lineHeightInPixels * 2.0f;
+    result.boxWidth = result.boxHeight * 3.0f;
 
-    bool drawLabels = (gridX + gridWidth + cellSideInPixels + gridMargin + boxWidth) <= tetris->windowWidth;
+    result.drawLabels = (result.gridX + result.gridWidth + result.cellSideInPixels + result.gridMargin + result.boxWidth) <= input.windowWidth;
 
-    float gridY = drawLabels ? ((float)tetris->windowHeight - gridHeight) / 2.0f : ((float)tetris->windowHeight - gridHeight) - cellSideInPixels;
+    result.gridY = result.drawLabels ? ((float)input.windowHeight - result.gridHeight) / 2.0f : ((float)input.windowHeight - result.gridHeight) - result.cellSideInPixels;
 
-    // Background
-    {
-        ttsDrawColorQuad(
-            gridX, gridY,
-            gridWidth, gridHeight,
-            ttsMakeColor(0.0f, 0.0f, 0.0f, 255.0f),
-            tetris->platform
+    return result;
+}
+
+static void tetrisDoBackground(
+    Platform *platform
+    , PlatformInput input, TetrisLayout layout
+) {
+    tetrisDrawColorQuad(
+        platform,
+        0.0f, 0.0f,
+        (float)input.windowWidth, (float)input.windowHeight,
+        baseMakeColor(34.0f, 67.0f, 74.0f, 255.0f)
+    );
+    tetrisDrawColorQuad(
+        platform,
+        layout.gridX, layout.gridY,
+        layout.gridWidth, layout.gridHeight,
+        baseMakeColor(0.0f, 0.0f, 0.0f, 255.0f)
+    );
+}
+
+static void tetrisDoGridBorder(Platform *platform, TetrisLayout layout, BaseColor gridBorderColor) {
+    for (int32_t column = -1; column < TETRIS_COLUMN_COUNT + 1; column++) {
+        int32_t row = -1;
+        tetrisDrawCell(
+            platform,
+            row,
+            column,
+            gridBorderColor,
+            layout.cellSideInPixels,
+            layout.gridX,
+            layout.gridY
+        );
+
+        row = TETRIS_ROW_COUNT;
+        tetrisDrawCell(
+            platform,
+            row,
+            column,
+            gridBorderColor,
+            layout.cellSideInPixels,
+            layout.gridX,
+            layout.gridY
         );
     }
 
-    TtsColor frameColor = {102.0f, 102.0f, 102.0f, 255.0f};
+    for (int32_t row = 0; row < TETRIS_ROW_COUNT; row++) {
+        int32_t column = -1;
+        tetrisDrawCell(
+            platform,
+            row,
+            column,
+            gridBorderColor,
+            layout.cellSideInPixels,
+            layout.gridX,
+            layout.gridY
+        );
 
-    //Frame
-    {
-        for (int32_t column = -1; column < TTS_COLUMN_COUNT + 1; column++) {
-            int32_t row = -1;
-            ttsDrawCell(
-                tetris,
-                row,
-                column,
-                frameColor,
-                cellSideInPixels,
-                gridX,
-                gridY
-            );
-
-            row = TTS_ROW_COUNT;
-            ttsDrawCell(
-                tetris,
-                row,
-                column,
-                frameColor,
-                cellSideInPixels,
-                gridX,
-                gridY
-            );
-        }
-
-        for (int32_t row = 0; row < TTS_ROW_COUNT; row++) {
-            int32_t column = -1;
-            ttsDrawCell(
-                tetris,
-                row,
-                column,
-                frameColor,
-                cellSideInPixels,
-                gridX,
-                gridY
-            );
-
-            column = TTS_COLUMN_COUNT;
-            ttsDrawCell(
-                tetris,
-                row,
-                column,
-                frameColor,
-                cellSideInPixels,
-                gridX,
-                gridY
-            );
-        }
+        column = TETRIS_COLUMN_COUNT;
+        tetrisDrawCell(
+            platform,
+            row,
+            column,
+            gridBorderColor,
+            layout.cellSideInPixels,
+            layout.gridX,
+            layout.gridY
+        );
     }
+}
 
-    // Player
+static void tetrisDoPlayer(Tetris *tetris, Platform *platform, PlatformInput input, TetrisLayout layout) {
     {
         if (shouldUpdate(tetris)) {
-            float velocityMultiplier = ttsGetVelocityMultiplier(tetris);
+            float velocityMultiplier = tetrisGetVelocityMultiplier(tetris);
             float verticalVelocity = 3.0f * velocityMultiplier;
 
-            if (ttsControlPressed(tetris, TtsControlType_Space)) {
+            if (tetrisControlPressed(input, PlatformControlType_Space)) {
                 tetris->isHardDropping = true;
                 tetris->isSoftDropping = false;
-                ttsPlaySoundEffect(tetris, TtsSoundEffect_Click);
+                tetrisPlaySoundEffect(tetris, platform, TetrisSoundEffect_Click);
             }
 
-            if (!tetris->isHardDropping && ttsControlPressed(tetris, TtsControlType_Down)) {
+            if (!tetris->isHardDropping && tetrisControlPressed(input, PlatformControlType_Down)) {
                 tetris->isSoftDropping = true;
             }
 
-            if (!ttsControlDown(tetris, TtsControlType_Down)) {
+            if (!tetrisControlDown(input, PlatformControlType_Down)) {
                 tetris->isSoftDropping = false;
             }
 
@@ -1344,64 +1258,62 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
                 verticalVelocity *= 10.0f;
             }
             float horizontalVelocity = 8.0f;
-            tetris->playerYProgression += verticalVelocity * secondsElapsed;
+            tetris->playerYProgression += verticalVelocity * input.secondsElapsed;
 
-            // bool leftPressed = ttsControlPressed(tetris, TtsControlType_Left);
-            // bool rightPressed = ttsControlPressed(tetris, TtsControlType_Right);
-            bool leftDown = ttsControlDown(tetris, TtsControlType_Left);
-            bool rightDown = ttsControlDown(tetris, TtsControlType_Right);
+            bool leftDown = tetrisControlDown(input, PlatformControlType_Left);
+            bool rightDown = tetrisControlDown(input, PlatformControlType_Right);
 
-            TtsHorizontalDirection previousDirection = tetris->horizontalDirection;
+            TetrisHorizontalDirection previousDirection = tetris->horizontalDirection;
 
             if (!tetris->isHardDropping) {
                 if (leftDown && !rightDown) {
-                    tetris->horizontalDirection = TtsHorizontalDirection_Left;
+                    tetris->horizontalDirection = TetrisHorizontalDirection_Left;
                 } else if (rightDown && !leftDown) {
-                    tetris->horizontalDirection = TtsHorizontalDirection_Right;
+                    tetris->horizontalDirection = TetrisHorizontalDirection_Right;
                 } else {
-                    tetris->horizontalDirection = TtsHorizontalDirection_None;
+                    tetris->horizontalDirection = TetrisHorizontalDirection_None;
                     tetris->playerXProgression = 0.0f;
                 }
             }
 
             if (tetris->horizontalDirection != previousDirection) {
-                if (tetris->horizontalDirection == TtsHorizontalDirection_Left) {
+                if (tetris->horizontalDirection == TetrisHorizontalDirection_Left) {
                     tetris->playerXProgression -= 1.0f;
                 }
-                if (tetris->horizontalDirection == TtsHorizontalDirection_Right) {
+                if (tetris->horizontalDirection == TetrisHorizontalDirection_Right) {
                     tetris->playerXProgression += 1.0f;
                 }
             } else {
-                float xDelta =  horizontalVelocity * secondsElapsed;
+                float xDelta =  horizontalVelocity * input.secondsElapsed;
 
-                if (tetris->horizontalDirection == TtsHorizontalDirection_Left) {
+                if (tetris->horizontalDirection == TetrisHorizontalDirection_Left) {
                     tetris->playerXProgression -= xDelta;
                 }
-                if (tetris->horizontalDirection == TtsHorizontalDirection_Right) {
+                if (tetris->horizontalDirection == TetrisHorizontalDirection_Right) {
                     tetris->playerXProgression += xDelta;
                 }
             }
 
-            for (uint32_t pressIndex = 0; pressIndex < tetris->controls[TtsControlType_C].pressCount; pressIndex++) {
-                ttsRotatePlayer(tetris, -1);
+            for (uint32_t pressIndex = 0; pressIndex < input.controls[PlatformControlType_C].pressCount; pressIndex++) {
+                tetrisRotatePlayer(tetris, -1);
             }
 
-            for (uint32_t pressIndex = 0; pressIndex < tetris->controls[TtsControlType_Up].pressCount; pressIndex++) {
-                ttsRotatePlayer(tetris, +1);
+            for (uint32_t pressIndex = 0; pressIndex < input.controls[PlatformControlType_Up].pressCount; pressIndex++) {
+                tetrisRotatePlayer(tetris, +1);
             }
         }
 
         while (tetris->playerYProgression > 1.0f) {
-            ttsMoveVertically(tetris);
+            tetrisMoveVertically(tetris, platform);
         }
 
         while (tetris->playerXProgression >= 1.0f || tetris->playerXProgression <= -1.0f) {
             bool moveRight = tetris->playerXProgression > 0.0f ;
             float increment = moveRight ? 1.0f : -1.0f;
-            TtsTetramino playerCells = ttsGetPlayerCells(tetris);
-            TtsTetramino nextCells = ttsOffsetCells(playerCells, moveRight ? 1 : -1, 0);
+            TetrisPiece playerCells = tetrisGetPlayerCells(tetris);
+            TetrisPiece nextCells = tetrisOffsetCells(playerCells, moveRight ? 1 : -1, 0);
 
-            if (ttsIsPositionAvailable(tetris, nextCells)) {
+            if (tetrisIsPositionAvailable(tetris, nextCells)) {
                 tetris->playerXProgression -= increment;
                 tetris->playerXInCells += increment;
             } else {
@@ -1409,375 +1321,432 @@ static void ttsUpdate(TtsTetris *tetris, float secondsElapsed) {
             }
         }
 
-        TtsTetramino playerCells = ttsGetPlayerCells(tetris);
-        TtsColor color = ttsGetTetraminoColor(tetris, tetris->playerType);
-        for (int32_t cellIndex = 0; cellIndex < TTS_ARRAYCOUNT(playerCells.cells); cellIndex++) {
+        TetrisPiece playerCells = tetrisGetPlayerCells(tetris);
+        BaseColor color = tetrisGetPieceColor(tetris, tetris->playerType);
+        for (int32_t cellIndex = 0; cellIndex < BASE_ARRAYCOUNT(playerCells.cells); cellIndex++) {
             if (playerCells.cells[cellIndex].y >= 0) {
-                ttsDrawCell(
-                    tetris,
+                tetrisDrawCell(
+                    platform,
                     playerCells.cells[cellIndex].y,
                     playerCells.cells[cellIndex].x,
                     color,
-                    cellSideInPixels,
-                    gridX,
-                    gridY
+                    layout.cellSideInPixels,
+                    layout.gridX,
+                    layout.gridY
                 );
             }
         }
     }
+}
 
-    bool wasFading = ttsIsFading(tetris);
-    if (ttsIsFading(tetris)) {
-        tetris->secondsToFadeEnd -= secondsElapsed;
+static void tetrisDoFading(Tetris *tetris, Platform *platform, PlatformInput input) {
+    bool wasFading = tetrisIsFading(tetris);
+    if (tetrisIsFading(tetris)) {
+        tetris->secondsToFadeEnd -= input.secondsElapsed;
     } else {
         tetris->secondsToFadeEnd = 0.0f;
     }
-    bool isFading = ttsIsFading(tetris);
+    bool isFading = tetrisIsFading(tetris);
 
     if (wasFading && !isFading) {
-        for (int32_t rowIndex = 0; rowIndex < tetris->clearedRowsCount; rowIndex++) {
-            int32_t clearedRow = tetris->clearedRows[rowIndex];
-            ttsClearRow(tetris, clearedRow);
+        for (int32_t rowIndex = 0; rowIndex < tetris->fadingRowsCount; rowIndex++) {
+            int32_t clearedRow = tetris->fadingRows[rowIndex];
+            tetrisClearRow(tetris, clearedRow);
         }
-        ttsPlaySoundEffect(tetris, TtsSoundEffect_Click);
+        tetrisPlaySoundEffect(tetris, platform, TetrisSoundEffect_Click);
     }
+}
 
-    if (ttsIsFalling(tetris)){
-        float fallingVelocity = 20.0f;
-        tetris->fallingYProgression += (fallingVelocity * secondsElapsed);
+static void tetrisDoRowsFalling(Tetris *tetris, PlatformInput input) {
+    float fallingVelocity = 20.0f;
+    tetris->fallingYProgression += (fallingVelocity * input.secondsElapsed);
 
-        while (tetris->fallingYProgression >= 1.0f && tetris->clearedRowsCount > 0) {
-            int32_t clearedRow = tetris->clearedRows[tetris->clearedRowsCount - 1];
+    while (tetris->fallingYProgression >= 1.0f && tetris->fadingRowsCount > 0) {
+        int32_t clearedRow = tetris->fadingRows[tetris->fadingRowsCount - 1];
 
-            for (int32_t y = clearedRow - 1; y >= 0; y--) {
-                for (int32_t x = 0; x < TTS_COLUMN_COUNT; x++) {
-                    tetris->grid[y + 1][x] = tetris->grid[y][x];
-                }
+        for (int32_t y = clearedRow - 1; y >= 0; y--) {
+            for (int32_t x = 0; x < TETRIS_COLUMN_COUNT; x++) {
+                tetris->grid[y + 1][x] = tetris->grid[y][x];
             }
-
-            ttsClearRow(tetris, 0);
-
-            tetris->clearedRowsCount--;
-            for (int32_t rowIndex = 0; rowIndex < tetris->clearedRowsCount; rowIndex++) {
-                tetris->clearedRows[rowIndex]++;
-            }
-            tetris->fallingYProgression -= 1.0f;
         }
+
+        tetrisClearRow(tetris, 0);
+
+        tetris->fadingRowsCount--;
+        for (int32_t rowIndex = 0; rowIndex < tetris->fadingRowsCount; rowIndex++) {
+            tetris->fadingRows[rowIndex]++;
+        }
+        tetris->fallingYProgression -= 1.0f;
     }
+}
 
-    // Grid
-    {
-        for (int32_t rowIndex = 0; rowIndex < TTS_ARRAYCOUNT(tetris->grid); rowIndex++) {
-            bool isClearedRow = false;
+static void tetrisDoGrid(Tetris *tetris, Platform *platform, TetrisLayout layout)   {
+    for (int32_t rowIndex = 0; rowIndex < BASE_ARRAYCOUNT(tetris->grid); rowIndex++) {
+        bool isClearedRow = false;
 
-            for (int32_t clearedRowIndex = 0; clearedRowIndex < tetris->clearedRowsCount; clearedRowIndex++) {
-                if (tetris->clearedRows[clearedRowIndex] == rowIndex) {
-                    isClearedRow = true;
-                    break;
-                }
-            }
-
-            for (int32_t columnIndex = 0; columnIndex < TTS_ARRAYCOUNT(tetris->grid[0]); columnIndex++) {
-                TtsTetraminoType cell = tetris->grid[rowIndex][columnIndex];
-
-                if (!ttsIsCellAvailable(tetris, columnIndex, rowIndex)) {
-                    TtsColor color = ttsGetTetraminoColor(tetris, cell);
-
-                    if (isClearedRow && ttsIsFading(tetris)) {
-                        float fadeRatio = 1.0f - (tetris->secondsToFadeEnd / TTS_FADE_SECONDS);
-                        float alphaRatio = fadeRatio * fadeRatio * fadeRatio;
-                        float alpha = 255 - (alphaRatio * 255.0f);
-                        color.a = alpha;
-                    }
-
-                    ttsDrawCell(
-                        tetris,
-                        rowIndex,
-                        columnIndex,
-                        color,
-                        cellSideInPixels,
-                        gridX,
-                        gridY
-                    );
-                }
+        for (int32_t clearedRowIndex = 0; clearedRowIndex < tetris->fadingRowsCount; clearedRowIndex++) {
+            if (tetris->fadingRows[clearedRowIndex] == rowIndex) {
+                isClearedRow = true;
+                break;
             }
         }
-    }
 
-    if (tetris->gameOver) {
-        if (tetris->gameOverAnimationSteps < TTS_ROW_COUNT) {
-            float secondsForGameOverRow = 0.1f;
-            if (tetris->secondsToNextGameOverAnimation <= 0.0f) {
-                tetris->gameOverAnimationSteps++;
-                tetris->secondsToNextGameOverAnimation += secondsForGameOverRow;
-                TtsSoundEffect soundEffect  = TtsSoundEffect_Click;
+        for (int32_t columnIndex = 0; columnIndex < BASE_ARRAYCOUNT(tetris->grid[0]); columnIndex++) {
+            TetrisPieceType cell = tetris->grid[rowIndex][columnIndex];
 
-                if (tetris->gameOverAnimationSteps >= TTS_ROW_COUNT - 1){
-                    soundEffect = TtsSoundEffect_GameOver;
-                    tetris->secondsToOpenMenu = 1.5f;
+            if (!tetrisIsCellAvailable(tetris, columnIndex, rowIndex)) {
+                BaseColor color = tetrisGetPieceColor(tetris, cell);
+
+                if (isClearedRow && tetrisIsFading(tetris)) {
+                    float fadeRatio = 1.0f - (tetris->secondsToFadeEnd / TETRIS_FADE_SECONDS);
+                    float alphaRatio = fadeRatio * fadeRatio * fadeRatio;
+                    float alpha = 255 - (alphaRatio * 255.0f);
+                    color.a = alpha;
                 }
 
-                ttsPlaySoundEffect(tetris, soundEffect);
-            }
-            tetris->secondsToNextGameOverAnimation -= secondsElapsed;
-        }
-
-        for (uint32_t gameOverRowIndex = 0; gameOverRowIndex <tetris->gameOverAnimationSteps; gameOverRowIndex++) {
-            for (uint32_t column = 0; column < TTS_COLUMN_COUNT; column++) {
-                uint32_t row = TTS_ROW_COUNT - 1 - gameOverRowIndex;
-                ttsDrawCell(
-                    tetris,
-                    row,
-                    column,
-                    frameColor,
-                    cellSideInPixels,
-                    gridX,
-                    gridY
+                tetrisDrawCell(
+                    platform,
+                    rowIndex,
+                    columnIndex,
+                    color,
+                    layout.cellSideInPixels,
+                    layout.gridX,
+                    layout.gridY
                 );
             }
         }
     }
+}
 
-    if (ttsHasWon(tetris)) {
-        uint32_t cellCount = TTS_ROW_COUNT * TTS_COLUMN_COUNT;
-
-        float secondsForGameOverStep = 0.05f;
+static void tetrisDoGameOver(Tetris *tetris, Platform *platform, PlatformInput input, TetrisLayout layout, BaseColor gridBorderColor) {
+    if (tetris->gameOverAnimationSteps < TETRIS_ROW_COUNT) {
+        float secondsForGameOverRow = 0.1f;
         if (tetris->secondsToNextGameOverAnimation <= 0.0f) {
-            if (tetris->gameOverAnimationSteps < cellCount) {
-                tetris->gameOverAnimationSteps++;
-                if (tetris->gameOverAnimationSteps >= cellCount){
-                    tetris->secondsToOpenMenu = 1.5f;
-                    platformPauseSound(tetris, TtsSoundType_Music);
-                    ttsPlaySoundEffect(tetris, TtsSoundEffect_Yay);
-                }
+            tetris->gameOverAnimationSteps++;
+            tetris->secondsToNextGameOverAnimation += secondsForGameOverRow;
+            TetrisSoundEffect soundEffect  = TetrisSoundEffect_Click;
+
+            if (tetris->gameOverAnimationSteps >= TETRIS_ROW_COUNT - 1){
+                soundEffect = TetrisSoundEffect_GameOver;
+                tetris->secondsToOpenMenu = 1.5f;
             }
-            tetris->secondsToNextGameOverAnimation += secondsForGameOverStep;
 
-            for (uint32_t gameOverCellIndex = 0; gameOverCellIndex <tetris->gameOverAnimationSteps; gameOverCellIndex++) {
-                TtsTetraminoType type = getNextType(tetris);
-
-                uint32_t gameOverRowIndex = gameOverCellIndex / TTS_COLUMN_COUNT;
-                uint32_t gameOverColumnIndex = gameOverCellIndex % TTS_COLUMN_COUNT;
-
-                tetris->grid[TTS_ROW_COUNT - gameOverRowIndex - 1][gameOverColumnIndex] = type;
-            }
+            tetrisPlaySoundEffect(tetris,  platform, soundEffect);
         }
-        tetris->secondsToNextGameOverAnimation -= secondsElapsed;
+        tetris->secondsToNextGameOverAnimation -= input.secondsElapsed;
     }
 
-    if (tetris->secondsToOpenMenu > 0.0f) {
-        tetris->secondsToOpenMenu -= secondsElapsed;
-    }
-
-    if (tetris->secondsToOpenMenu < 0.0f) {
-        ttsOpenMenu(tetris);
-        tetris->secondsToOpenMenu = 0.0f;
-        if (!tetris->musicOff) {
-            platformResumeSound(tetris, TtsSoundType_Music);
+    for (uint32_t gameOverRowIndex = 0; gameOverRowIndex <tetris->gameOverAnimationSteps; gameOverRowIndex++) {
+        for (uint32_t column = 0; column < TETRIS_COLUMN_COUNT; column++) {
+            uint32_t row = TETRIS_ROW_COUNT - 1 - gameOverRowIndex;
+            tetrisDrawCell(
+                platform,
+                row,
+                column,
+                gridBorderColor,
+                layout.cellSideInPixels,
+                layout.gridX,
+                layout.gridY
+            );
         }
     }
+}
 
-    TtsColor boxColor = ttsMakeColor(223.0f, 240.0f, 216.0f, 255.0f);
-    TtsColor fontColor = ttsMakeColor(0.0f, 0.0f, 0.0f, 255.0f);
+static void tetrisDoCelebrate(Tetris *tetris, Platform *platform, PlatformInput input) {
+    uint32_t cellCount = TETRIS_ROW_COUNT * TETRIS_COLUMN_COUNT;
 
+    float secondsForGameOverStep = 0.05f;
+    if (tetris->secondsToNextGameOverAnimation <= 0.0f) {
+        if (tetris->gameOverAnimationSteps < cellCount) {
+            tetris->gameOverAnimationSteps++;
+            if (tetris->gameOverAnimationSteps >= cellCount){
+                tetris->secondsToOpenMenu = 1.5f;
+                platformPauseSound(platform, PlatformSoundType_Music);
+                tetrisPlaySoundEffect(tetris, platform, TetrisSoundEffect_Yay);
+            }
+        }
+        tetris->secondsToNextGameOverAnimation += secondsForGameOverStep;
+
+        for (uint32_t gameOverCellIndex = 0; gameOverCellIndex <tetris->gameOverAnimationSteps; gameOverCellIndex++) {
+            TetrisPieceType type = getNextType(tetris);
+
+            uint32_t gameOverRowIndex = gameOverCellIndex / TETRIS_COLUMN_COUNT;
+            uint32_t gameOverColumnIndex = gameOverCellIndex % TETRIS_COLUMN_COUNT;
+
+            tetris->grid[TETRIS_ROW_COUNT - gameOverRowIndex - 1][gameOverColumnIndex] = type;
+        }
+    }
+    tetris->secondsToNextGameOverAnimation -= input.secondsElapsed;
+}
+
+static void tetrisDoInfo(Tetris *tetris, Platform *platform, PlatformInput input, TetrisLayout layout, BaseColor boxColor, BaseColor fontColor) {
     {
-        if (drawLabels) {
-            float rightBoxX = gridX + gridWidth + (gridMargin * 2.0f);
-            float leftBoxX = gridX - (gridMargin * 2.0f) - boxWidth;
-            float upperBoxY = gridY;
-            float lowerBoxY = gridY + gridHeight - boxHeight;
+        if (layout.drawLabels) {
+            float rightBoxX = layout.gridX + layout.gridWidth + (layout.gridMargin * 2.0f);
+            float leftBoxX = layout.gridX - (layout.gridMargin * 2.0f) - layout.boxWidth;
+            float upperBoxY = layout.gridY;
+            float lowerBoxY = layout.gridY + layout.gridHeight - layout.boxHeight;
 
-            ttsDrawNumberLabel(
-                tetris, leftBoxX, upperBoxY, boxWidth, boxHeight, gridMargin,
-                TTS_MAKE_STRING("Lines:"),
+            tetrisDrawNumberLabel(
+                tetris, platform, leftBoxX, upperBoxY, layout.boxWidth, layout.boxHeight, layout.gridMargin,
+                BASE_MAKE_STRING("Rows:"),
                 boxColor, fontColor,
-                tetris->clearedLines
+                tetris->clearedRows
             );
 
-            ttsDrawNextTetraminoLabel(
-                tetris, rightBoxX, upperBoxY, boxWidth, boxHeight, gridMargin,
+            tetrisDrawNextPieceLabel(
+                tetris, platform, rightBoxX, upperBoxY,layout.boxWidth, layout.boxHeight, layout.gridMargin,
                 boxColor,  fontColor,
-                cellSideInPixels
+                layout.cellSideInPixels
             );
 
-            ttsDrawNumberLabel(
-                tetris, leftBoxX, lowerBoxY, boxWidth, boxHeight, gridMargin,
-                TTS_MAKE_STRING("Level:"),
+            tetrisDrawNumberLabel(
+                tetris, platform, leftBoxX, lowerBoxY,layout.boxWidth, layout.boxHeight, layout.gridMargin,
+                BASE_MAKE_STRING("Level:"),
                 boxColor, fontColor,
-                ttsGetCurrentLevel(tetris)
+                tetrisGetCurrentLevel(tetris)
             );
 
-            ttsDrawNumberLabel(
-                tetris, rightBoxX, lowerBoxY, boxWidth, boxHeight, gridMargin,
-                TTS_MAKE_STRING("Score:"),
+            tetrisDrawNumberLabel(
+                tetris, platform, rightBoxX, lowerBoxY, layout.boxWidth, layout.boxHeight, layout.gridMargin,
+                BASE_MAKE_STRING("Score:"),
                 boxColor, fontColor,
                 tetris->score
             );
         } else {
-            ttsDrawNextTetramino(
-                tetris,
+            tetrisDrawNextPiece(
+                tetris, platform,
                 0.0f, 0.0f,
-                (float) tetris->windowWidth, gridY - cellSideInPixels,
-                cellSideInPixels
+                (float) input.windowWidth, layout.gridY - layout.cellSideInPixels,
+                layout.cellSideInPixels
             );
         }
     }
-
-    if (tetris->menuOpen) {
-        float menuWidth = gridWidth * 1.2f;
-        float menuLeft = (tetris->windowWidth - menuWidth) / 2.0f;
-        float menuHeight = gridHeight * 1.2f;
-        float menuTop = (tetris->windowHeight - menuHeight) / 2.0f;
-
-        ttsDrawCellLikeQuad(
-            tetris,
-            menuLeft, menuTop,
-            menuWidth, menuHeight,
-            5.0f,
-            boxColor
-        ) ;
-
-        float buttonWidth = menuWidth * 0.8f;
-        float buttonMargin = (menuWidth - buttonWidth) / 2.0f;
-        float buttonHeight = buttonWidth * 0.4f;
-
-        uint32_t buttonCount = TtsButtonType_Count - 1;
-        float buttonsGap = (menuHeight - (2.0f * buttonMargin) - ((float)buttonCount * buttonHeight)) / ((float) (buttonCount - 1));
-
-        float buttonLeft = menuLeft + buttonMargin;
-        float buttonTop = menuTop + buttonMargin;
-
-        bool mouseDown = ttsControlDown(tetris, TtsControlType_MouseLeft);
-        bool enterPressed = ttsControlPressed(tetris, TtsControlType_Enter);
-        bool mousePressed = ttsControlPressed(tetris, TtsControlType_MouseLeft);
-        bool mouseReleased = ttsControlReleased(tetris, TtsControlType_MouseLeft);
-
-        if (tetris->hoveredButton > TtsButtonType_None + 1 && ttsControlPressed(tetris, TtsControlType_Up)) {
-            tetris->hoveredButton--;
-        }
-
-        if (tetris->hoveredButton < TtsButtonType_Count - 1 && ttsControlPressed(tetris, TtsControlType_Down)) {
-            tetris->hoveredButton++;
-        }
-
-        for (TtsButtonType buttonType = TtsButtonType_None + 1; buttonType < TtsButtonType_Count; buttonType++) {
-            TtsString label = ttsGetButtonLabel(tetris, buttonType);
-            TtsTetraminoType tetraminoType = ttsGetButtonTetraminoType(buttonType);
-            TtsColor buttonColor = ttsGetTetraminoColor(tetris, tetraminoType);
-
-            float mouseX = (float) tetris->mouseX;
-            float mouseY = (float) tetris->mouseY;
-            float previousMouseX = (float) tetris->previousMouseX;
-            float previousMouseY = (float) tetris->previousMouseY;
-
-            bool isMouseOver = ttsPointInQuad(mouseX, mouseY, buttonTop, buttonLeft, buttonWidth, buttonHeight);
-            bool wasMouseOver = ttsPointInQuad(previousMouseX, previousMouseY, buttonTop, buttonLeft, buttonWidth, buttonHeight);
-
-            bool mouseEntered = isMouseOver && !wasMouseOver;
-
-            if (mouseEntered) {
-                tetris->hoveredButton = buttonType;
-            }
-
-            if (tetris->hoveredButton == buttonType && mousePressed) {
-                tetris->pressedButton = buttonType;
-            }
-
-            float buttonPadding = 0.0f;
-
-            if (tetris->pressedButton == buttonType) {
-                float releaseThreshold = 5.0f;
-                if (!ttsPointInQuad(mouseX, mouseY, buttonTop - releaseThreshold, buttonLeft - releaseThreshold, buttonWidth + (2.0f * releaseThreshold), buttonHeight * (2.0f * releaseThreshold))) {
-                    tetris->pressedButton = TtsButtonType_None;
-                }
-
-                buttonPadding = 3.0f;
-            } else {
-                buttonPadding = 5.0f;
-            }
-
-            bool doAction = (tetris->pressedButton == buttonType && mouseReleased) || (tetris->hoveredButton == buttonType && enterPressed);
-
-            if (doAction) {
-                ttsPlaySoundEffect(tetris, TtsSoundEffect_Click);
-
-                switch (buttonType) {
-                    case TtsButtonType_Resume: {
-                        ttsResumeGame(tetris);
-                    } break;
-                    case TtsButtonType_New: {
-                        ttsNewGame(tetris);
-                    } break;
-                    case TtsButtonType_Music: {
-                        if (tetris->musicOff) {
-                            platformResumeSound(tetris, TtsSoundType_Music);
-                            tetris->musicOff= false;
-                        } else {
-                            platformPauseSound(tetris, TtsSoundType_Music);
-                            tetris->musicOff= true;
-                        }
-                    } break;
-                    case TtsButtonType_Sound: {
-                        tetris->effectsOff = !tetris->effectsOff;
-                    } break;
-                    case TtsButtonType_Quit: {
-                        tetris->shouldQuit = true;
-                    } break;
-                }
-            }
-
-            ttsDrawCellLikeQuad(
-                tetris,
-                buttonLeft, buttonTop,
-                buttonWidth, buttonHeight,
-                buttonPadding,
-                buttonColor
-            ) ;
-
-            float maxLineHeight = buttonHeight * 0.75f;
-
-            float fontScale = 1.0f;
-
-            float lineHeight = tetris->atlas.lineHeightInPixels;
-
-            if (maxLineHeight < tetris->atlas.lineHeightInPixels) {
-                fontScale = maxLineHeight / tetris->atlas.lineHeightInPixels;
-                lineHeight = maxLineHeight;
-            }
-
-            TtsColor labelColor = fontColor;
-
-            if (tetris->hoveredButton == buttonType) {
-                labelColor = ttsMakeColor(100.0f, 100.0f, 100.0f, 255.0f);
-            }
-
-            ttsDrawString(
-                tetris,
-                label,
-                buttonLeft + (buttonWidth / 20.0f),
-                buttonTop + ((buttonHeight - lineHeight) / 2.0f),
-                fontScale,
-                labelColor
-            );
-            buttonTop += (buttonHeight + buttonsGap);
-        }
-
-        if (!mouseDown) {
-            tetris->pressedButton = TtsButtonType_None;
-        }
-    }
-
-    for (uint32_t controlIndex = 1; controlIndex < TTS_ARRAYCOUNT(tetris->controls); controlIndex++) {
-        tetris->controls[controlIndex].pressCount = 0;
-        tetris->controls[controlIndex].releaseCount = 0;
-    }
-    tetris->frame++;
-    tetris->previousMouseX = tetris->mouseX;
-    tetris->previousMouseY = tetris->mouseY;
 }
 
-static bool ttsWavIsValid(Wav wav) {
-    bool result = wav.riffChunk && wav.fmtChunk && wav.data;
+static void tetrisDoMenu(Tetris *tetris, Platform *platform, PlatformInput input, TetrisLayout layout, BaseColor boxColor, BaseColor fontColor) {
+    float menuWidth = layout.gridWidth * 1.2f;
+    float menuLeft = (input.windowWidth - menuWidth) / 2.0f;
+    float menuHeight = layout.gridHeight * 1.2f;
+    float menuTop = (input.windowHeight - menuHeight) / 2.0f;
 
-    return result;
+    tetrisDrawCellLikeQuad(
+        platform,
+        menuLeft, menuTop,
+        menuWidth, menuHeight,
+        5.0f,
+        boxColor
+    ) ;
+
+    float buttonWidth = menuWidth * 0.8f;
+    float buttonMargin = (menuWidth - buttonWidth) / 2.0f;
+    float buttonHeight = buttonWidth * 0.4f;
+
+    uint32_t buttonCount = TetrisButtonType_Count - 1;
+    float buttonsGap = (menuHeight - (2.0f * buttonMargin) - ((float)buttonCount * buttonHeight)) / ((float) (buttonCount - 1));
+
+    float buttonLeft = menuLeft + buttonMargin;
+    float buttonTop = menuTop + buttonMargin;
+
+    bool mouseDown = tetrisControlDown(input, PlatformControlType_MouseLeft);
+    bool enterPressed = tetrisControlPressed(input, PlatformControlType_Enter);
+    bool mousePressed = tetrisControlPressed(input, PlatformControlType_MouseLeft);
+    bool mouseReleased = tetrisControlReleased(input, PlatformControlType_MouseLeft);
+
+    if (tetris->hoveredButton > TetrisButtonType_None + 1 && tetrisControlPressed(input, PlatformControlType_Up)) {
+        tetris->hoveredButton--;
+    }
+
+    if (tetris->hoveredButton < TetrisButtonType_Count - 1 && tetrisControlPressed(input, PlatformControlType_Down)) {
+        tetris->hoveredButton++;
+    }
+
+    for (TetrisButtonType buttonType = TetrisButtonType_None + 1; buttonType < TetrisButtonType_Count; buttonType++) {
+        BaseString label = tetrisGetButtonLabel(tetris, buttonType);
+        TetrisPieceType pieceType = tetrisGetButtonPieceType(buttonType);
+        BaseColor buttonColor = tetrisGetPieceColor(tetris, pieceType);
+
+        float mouseX = (float) input.mouseX;
+        float mouseY = (float) input.mouseY;
+        float previousMouseX = (float) tetris->previousMouseX;
+        float previousMouseY = (float) tetris->previousMouseY;
+
+        bool isMouseOver = tetrisPointInQuad(mouseX, mouseY, buttonTop, buttonLeft, buttonWidth, buttonHeight);
+        bool wasMouseOver = tetrisPointInQuad(previousMouseX, previousMouseY, buttonTop, buttonLeft, buttonWidth, buttonHeight);
+
+        bool mouseEntered = isMouseOver && !wasMouseOver;
+
+        if (mouseEntered) {
+            tetris->hoveredButton = buttonType;
+        }
+
+        if (tetris->hoveredButton == buttonType && mousePressed) {
+            tetris->pressedButton = buttonType;
+        }
+
+        float buttonPadding = 0.0f;
+
+        if (tetris->pressedButton == buttonType) {
+            float releaseThreshold = 5.0f;
+            if (!tetrisPointInQuad(mouseX, mouseY, buttonTop - releaseThreshold, buttonLeft - releaseThreshold, buttonWidth + (2.0f * releaseThreshold), buttonHeight * (2.0f * releaseThreshold))) {
+                tetris->pressedButton = TetrisButtonType_None;
+            }
+
+            buttonPadding = 3.0f;
+        } else {
+            buttonPadding = 5.0f;
+        }
+
+        bool doAction = (tetris->pressedButton == buttonType && mouseReleased) || (tetris->hoveredButton == buttonType && enterPressed);
+
+        if (doAction) {
+            tetrisPlaySoundEffect(tetris, platform, TetrisSoundEffect_Click);
+
+            switch (buttonType) {
+                case TetrisButtonType_Resume: {
+                    tetrisResumeGame(tetris, platform);
+                } break;
+                case TetrisButtonType_New: {
+                    tetrisNewGame(tetris, platform);
+                } break;
+                case TetrisButtonType_Music: {
+                    if (tetris->musicOff) {
+                        platformResumeSound(platform, PlatformSoundType_Music);
+                        tetris->musicOff= false;
+                    } else {
+                        platformPauseSound(platform, PlatformSoundType_Music);
+                        tetris->musicOff= true;
+                    }
+                } break;
+                case TetrisButtonType_Sound: {
+                    tetris->effectsOff = !tetris->effectsOff;
+                } break;
+                case TetrisButtonType_Quit: {
+                    tetris->shouldQuit = true;
+                } break;
+            }
+        }
+
+        tetrisDrawCellLikeQuad(
+            platform,
+            buttonLeft, buttonTop,
+            buttonWidth, buttonHeight,
+            buttonPadding,
+            buttonColor
+        ) ;
+
+        float maxLineHeight = buttonHeight * 0.75f;
+
+        float fontScale = 1.0f;
+
+        float lineHeight = tetris->atlas.lineHeightInPixels;
+
+        if (maxLineHeight < tetris->atlas.lineHeightInPixels) {
+            fontScale = maxLineHeight / tetris->atlas.lineHeightInPixels;
+            lineHeight = maxLineHeight;
+        }
+
+        BaseColor labelColor = fontColor;
+
+        if (tetris->hoveredButton == buttonType) {
+            labelColor = baseMakeColor(100.0f, 100.0f, 100.0f, 255.0f);
+        }
+
+        tetrisDrawString(
+            tetris,
+            platform,
+            label,
+            buttonLeft + (buttonWidth / 20.0f),
+            buttonTop + ((buttonHeight - lineHeight) / 2.0f),
+            fontScale,
+            labelColor
+        );
+        buttonTop += (buttonHeight + buttonsGap);
+    }
+
+    if (!mouseDown) {
+        tetris->pressedButton = TetrisButtonType_None;
+    }
+}
+
+static void tetrisDoAutoOpenMenu(Tetris *tetris,  Platform *platform, PlatformInput input) {
+    if (tetris->secondsToOpenMenu > 0.0f) {
+        tetris->secondsToOpenMenu -= input.secondsElapsed;
+    }
+
+    if (tetris->secondsToOpenMenu < 0.0f) {
+        tetrisOpenMenu(tetris);
+        tetris->secondsToOpenMenu = 0.0f;
+        if (!tetris->musicOff) {
+            platformResumeSound(platform, PlatformSoundType_Music);
+        }
+    }
+}
+
+static void tetrisUpdate(Tetris *tetris, Platform *platform, PlatformInput input, bool *shouldQuit) {
+    if (tetris->frame == 0) {
+        tetrisNewGame(tetris, platform);
+    }
+
+    if (!tetris->menuOpen && tetrisControlPressed(input, PlatformControlType_P)) {
+        tetris->paused = !tetris->paused;
+    }
+
+    if (tetrisControlPressed(input, PlatformControlType_Esc)) {
+        if (tetris->menuOpen) {
+            tetrisResumeGame(tetris, platform);
+        } else {
+            tetrisOpenMenu(tetris);
+        }
+    }
+
+    #ifdef TETRIS_ENABLE_CHEAT
+    uint32_t currentLevel =  tetrisGetCurrentLevel(tetris);
+    if (tetrisControlPressed(input, PlatformControlType_L) && !tetrisHasWon(tetris)) {
+        tetrisAddClearedRows(tetris, platform, (currentLevel * TETRIS_LINES_PER_LEVEL) - tetris->clearedRows);
+    }
+    #endif
+
+    TetrisLayout layout = tetrisGetLayout(tetris, input);
+
+    tetrisDoBackground(platform, input, layout);
+
+    BaseColor gridBorderColor = {102.0f, 102.0f, 102.0f, 255.0f};
+
+    tetrisDoGridBorder(platform, layout, gridBorderColor);
+
+    tetrisDoPlayer(tetris, platform, input, layout);
+
+    tetrisDoFading(tetris, platform, input);
+
+    if (tetrisAreRowsFalling(tetris)){
+        tetrisDoRowsFalling(tetris, input);
+    }
+
+    tetrisDoGrid(tetris, platform, layout);
+
+    if (tetris->gameOver) {
+        tetrisDoGameOver(tetris, platform, input, layout, gridBorderColor);
+    }
+
+    if (tetrisHasWon(tetris)) {
+        tetrisDoCelebrate(tetris,  platform, input);
+    }
+
+    tetrisDoAutoOpenMenu(tetris, platform, input);
+
+    BaseColor boxColor = baseMakeColor(223.0f, 240.0f, 216.0f, 255.0f);
+    BaseColor fontColor = baseMakeColor(0.0f, 0.0f, 0.0f, 255.0f);
+
+    tetrisDoInfo(tetris, platform, input, layout, boxColor, fontColor);
+
+    if (tetris->menuOpen) {
+        tetrisDoMenu(tetris, platform, input, layout, boxColor, fontColor);
+    }
+
+    tetris->frame++;
+    tetris->previousMouseX = input.mouseX;
+    tetris->previousMouseY = input.mouseY;
+    tetris->wasResizing = input.isResizing;
+    *shouldQuit = tetris->shouldQuit;
 }

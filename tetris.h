@@ -1,44 +1,22 @@
-#define TTS_ASSERT(a) do {if (!(a)) { __debugbreak();}} while (0);
-#define TTS_QUOTE(s) #s
-#define TTS_ARRAYCOUNT(a) (sizeof(a) / sizeof(*a))
-#define TTS_UNREFERENCED(a) a
-#define TTS_FIRST_CODEPOINT L' '
-#define TTS_LAST_CODEPOINT  L'~'
-#define TTS_CODEPOINT_COUNT (TTS_LAST_CODEPOINT - TTS_FIRST_CODEPOINT + 1)
-#define TTS_PIXELS_PER_POINT 1.33333333333333333f
-#define TTS_POINTS_PER_PIXEL 0.75f
-#define TTS_MAKE_STRING(a) ttsMakeString((a), (sizeof(a) - 1))
-#define TTS_FONT_PATH L"../data/Handjet-Regular.ttf"
-#define TTS_ATLAS_PATH "../data/atlas.dat"
-#define TTS_COLUMN_COUNT 10
-#define TTS_ROW_COUNT    19
-#define TTS_MAX_WIDTH_RATIO 0.8f
-#define TTS_MAX_HEIGTH_RATIO 0.8f
-#define TTS_MAX(a, b) ((a) > (b) ? (a) : (b))
-#define TTS_MIN(a, b) ((a) < (b) ? (a) : (b))
-#define TTS_FADE_SECONDS 0.5f
-#define TTS_DATA_DIR "../data/"
-#define TTS_ALLOCATION_SIZE (512 * 1024 * 1024)
-#define TTS_LEVEL_COUNT_PLUS_ONE 16
-#define TTS_LINES_PER_LEVEL 10
-#define TTS_ENABLE_CHEAT
-
-
-typedef struct TtsPlatform TtsPlatform;
-
-typedef struct {
-    float r;
-    float g;
-    float b;
-    float a;
-} TtsColor;
-
-
-
-typedef struct {
-    char *text;
-    uint64_t size;
-} TtsString;
+#define TETRIS_FIRST_CODEPOINT L' '
+#define TETRIS_LAST_CODEPOINT  L'~'
+#define TETRIS_CODEPOINT_COUNT (TETRIS_LAST_CODEPOINT - TETRIS_FIRST_CODEPOINT + 1)
+#define TETRIS_PIXELS_PER_POINT 1.33333333333333333f
+#define TETRIS_POINTS_PER_PIXEL 0.75f
+#define TETRIS_FONT_PATH L"../data/Handjet-Regular.ttf"
+#define TETRIS_ATLAS_PATH "../data/atlas.dat"
+#define TETRIS_COLUMN_COUNT 10
+#define TETRIS_ROW_COUNT    19
+#define TETRIS_MAX_WIDTH_RATIO 0.8f
+#define TETRIS_MAX_HEIGTH_RATIO 0.8f
+#define TETRIS_MAX(a, b) ((a) > (b) ? (a) : (b))
+#define TETRIS_MIN(a, b) ((a) < (b) ? (a) : (b))
+#define TETRIS_FADE_SECONDS 0.5f
+#define TETRIS_DATA_DIR "../data/"
+#define TETRIS_ALLOCATION_SIZE (512 * 1024 * 1024)
+#define TETRIS_LEVEL_COUNT_PLUS_ONE 16
+#define TETRIS_LINES_PER_LEVEL 10
+#define TETRIS_ENABLE_CHEAT
 
 typedef struct {
     uint32_t codepoint;
@@ -50,259 +28,169 @@ typedef struct {
     float bitmapYInPixels;
     float bitmapWidthInPixels;
     float bitmapHeightInPixels;
-} TtsGlyph;
+} TetrisGlyph;
 
 typedef struct {
     float width;
     float height;
     float lineHeightInPixels;
-    TtsGlyph glyphs[TTS_CODEPOINT_COUNT];
-} TtsAtlas;
-
-typedef struct {
-    void *data;
-    uint64_t size;
-} TtsReadResult;
-
-typedef struct {
-    uint32_t pressCount;
-    uint32_t releaseCount;
-    bool isDown;
-} TtsControl;
+    TetrisGlyph glyphs[TETRIS_CODEPOINT_COUNT];
+} TetrisAtlas;
 
 typedef enum {
-    TtsControlType_None,
+    TetrisHorizontalDirection_None,
 
-    TtsControlType_Left,
-    TtsControlType_Right,
-    TtsControlType_Up,
-    TtsControlType_Down,
-    TtsControlType_Esc,
-    TtsControlType_Space,
-    TtsControlType_Enter,
-    TtsControlType_C,
-    TtsControlType_P,
-	TtsControlType_L,
-    TtsControlType_MouseLeft,
-    TtsControlType_MouseRight,
-    TtsControlType_MouseCenter,
+    TetrisHorizontalDirection_Left,
+    TetrisHorizontalDirection_Right,
 
-    TtsControlType_Count,
-} TtsControlType;
-
-typedef enum {
-    TtsHorizontalDirection_None,
-
-    TtsHorizontalDirection_Left,
-    TtsHorizontalDirection_Right,
-
-    TtsHorizontalDirection_Count,
-} TtsHorizontalDirection;
+    TetrisHorizontalDirection_Count,
+} TetrisHorizontalDirection;
 
 typedef enum  {
-    TtsTetraminoType_None,
+    TetrisPieceType_None,
 
-    TtsTetraminoType_I,
-    TtsTetraminoType_O,
-    TtsTetraminoType_T,
-    TtsTetraminoType_L,
-    TtsTetraminoType_J,
-    TtsTetraminoType_Z,
-    TtsTetraminoType_S,
+    TetrisPieceType_I,
+    TetrisPieceType_O,
+    TetrisPieceType_T,
+    TetrisPieceType_L,
+    TetrisPieceType_J,
+    TetrisPieceType_Z,
+    TetrisPieceType_S,
 
-    TtsTetraminoType_Count,
-} TtsTetraminoType;
+    TetrisPieceType_Count,
+} TetrisPieceType;
 
 typedef enum {
-    TtsRotationType_None,
+    TetrisRotationType_None,
 
-    TtsRotationType_S,
-    TtsRotationType_R,
-    TtsRotationType_2,
-    TtsRotationType_L,
+    TetrisRotationType_S,
+    TetrisRotationType_R,
+    TetrisRotationType_2,
+    TetrisRotationType_L,
 
-    TtsRotationType_Count,
-} TtsRotationType;
+    TetrisRotationType_Count,
+} TetrisRotationType;
 
 typedef struct {
     bool flipCoordinates;
     bool flipSign;
-} TtsRotation;
-
-typedef struct {
-    uint32_t chunkId;
-    uint32_t chunkSize;
-    uint32_t waveId;
-} RiffChunk;
-
-typedef struct {
-    uint32_t chunkId;
-    uint32_t chunkSize;
-} WavChunkHeader;
-
-typedef union {
-    uint32_t  n;
-    char s[4];
-} WavTag;
-
-typedef struct guid {
-    uint32_t data1;
-    uint16_t data2;
-    uint16_t data3;
-    uint8_t  data4[8];
-} Guid;
-
-#pragma pack(push, 1)
-typedef struct {
-    uint16_t  formatTag;
-    uint16_t  channels;
-    uint32_t  samplesPerSec;
-    uint32_t  avgBytesPerSec;
-    uint16_t  blockAlign;
-    uint16_t  bitsPerSample;
-    uint16_t  extensionSize;
-    uint16_t  validBitsPerSample;
-    uint32_t  channelMask;
-    Guid subFormat;
-} WavFmtChunk;
-#pragma pack(pop)
-
-typedef struct {
-    RiffChunk   *riffChunk;
-    WavFmtChunk *fmtChunk;
-    void        *data;
-    uint32_t         dataSize;
-} Wav;
+} TetrisRotation;
 
 typedef struct Platform Platform;
 
 typedef struct {
     float x;
     float y;
-} TtsFloatCoords;
+} TetrisFloatCoords;
 
 typedef struct {
     int32_t x;
     int32_t y;
-} TtsI32Coords;
+} TetrisI32Coords;
 
 typedef struct {
-    TtsFloatCoords cellCenters[4];
-} TtsTetraminoPattern;
+    TetrisFloatCoords cellCenters[4];
+} TetrisPiecePattern;
 
 typedef struct {
-    TtsI32Coords cells[4];
-} TtsTetramino;
+    TetrisI32Coords cells[4];
+} TetrisPiece;
 
 typedef struct {
-    TtsFloatCoords esteticCenter;
+    TetrisFloatCoords esteticCenter;
     float minX;
     float minY;
     float maxX;
     float maxY;
     float width;
     float height;
-} TtsPatternFeatures;
+} TetrisPatternFeatures;
 
 typedef enum {
-	TtsSoundType_None,
-	
-	TtsSoundType_Effect,
-	TtsSoundType_Music,
-	
-	TtsSoundType_Count,
-} TtsSoundType;
+    TetrisSoundEffect_None,
+
+    TetrisSoundEffect_Whoosh,
+    TetrisSoundEffect_Click,
+    TetrisSoundEffect_GameOver,
+    TetrisSoundEffect_Yay,
+    TetrisSoundEffect_LevelUp,
+
+    TetrisSoundEffect_Count,
+} TetrisSoundEffect;
 
 typedef enum {
-    TtsSoundEffect_None,
+    TetrisMusic_None,
 
-    TtsSoundEffect_Whoosh,
-    TtsSoundEffect_Click,
-	TtsSoundEffect_GameOver,
-	TtsSoundEffect_Ding,
-	TtsSoundEffect_Success,
-	TtsSoundEffect_Pluck,
-	TtsSoundEffect_Yay,
-    TtsSoundEffect_LevelUp,
+    TetrisMusic_Theme,
+    TetrisMusic_Celebrate,
 
-    TtsSoundEffect_Count,
-} TtsSoundEffect;
+    TetrisMusic_Count,
+} TetrisMusic;
 
 typedef enum {
-    TtsMusic_None,
-	
-    TtsMusic_Theme,
-    TtsMusic_Celebrate,
+    TetrisButtonType_None,
 
-    TtsMusic_Count,
-} TtsMusic;
+    TetrisButtonType_Resume,
+    TetrisButtonType_New,
+    TetrisButtonType_Sound,
+    TetrisButtonType_Music,
+    TetrisButtonType_Quit,
 
-typedef enum {
-	TtsButtonType_None,
-	
-	TtsButtonType_Resume,
-	TtsButtonType_New,
-	TtsButtonType_Sound,
-	TtsButtonType_Music,
-	TtsButtonType_Quit,
-	
-	TtsButtonType_Count,
-} TtsButtonType;
+    TetrisButtonType_Count,
+} TetrisButtonType;
 
 typedef struct {
-	TtsColor colors[TtsTetraminoType_Count];
-} TtsColorScheme;
+    BaseColor colors[TetrisPieceType_Count];
+} TetrisColorScheme;
+
+typedef struct  {
+    float gridX;
+    float gridY ;
+    float gridWidth;
+    float gridHeight;
+    float boxWidth;
+    float boxHeight;
+    float gridMargin;
+    float cellSideInPixels;
+    bool drawLabels;
+}TetrisLayout;
 
 typedef struct {
-	uint64_t used;
-	uint64_t capacity;
-	void *buffer;
-} TtsArena;
-
-typedef struct {
-    TtsPlatform *platform;
-    TtsAtlas atlas;
-	TtsArena arena;
-    uint32_t windowWidth;
-    uint32_t windowHeight;
-    bool isResizing;
+    TetrisAtlas atlas;
+    BaseArena arena;
     bool wasResizing;
-	bool menuOpen;
-    Wav musics[TtsMusic_Count];
-    Wav soundEffects[TtsSoundEffect_Count];
+    bool menuOpen;
+    Wav musics[TetrisMusic_Count];
+    Wav soundEffects[TetrisSoundEffect_Count];
     uint64_t frame;
-    TtsControl controls[TtsControlType_Count];
-    int32_t mouseX;
-    int32_t mouseY;
-	int32_t previousMouseX;
-	int32_t previousMouseY;
-    TtsColor backgroundColor;
+    int32_t previousMouseX;
+    int32_t previousMouseY;
     float playerXInCells;
     float playerYInCells;
     float playerXProgression;
     float playerYProgression;
-	float fallingYProgression;
+    float fallingYProgression;
     bool paused;
-    TtsTetraminoType playerType;
-    TtsTetraminoType nextPlayerType;
-    TtsTetraminoType grid[TTS_ROW_COUNT][TTS_COLUMN_COUNT];
-    TtsRotationType playerRotationType;
-    TtsHorizontalDirection horizontalDirection;
+    TetrisPieceType playerType;
+    TetrisPieceType nextPlayerType;
+    TetrisPieceType grid[TETRIS_ROW_COUNT][TETRIS_COLUMN_COUNT];
+    TetrisRotationType playerRotationType;
+    TetrisHorizontalDirection horizontalDirection;
     uint32_t score;
-    uint32_t clearedLines;
+    uint32_t clearedRows;
     uint32_t seed;
     bool isHardDropping;
-	bool isSoftDropping;
-	float secondsToFadeEnd;
-	int32_t clearedRows[4];
-    int32_t clearedRowsCount;
-	TtsButtonType pressedButton;
-	TtsButtonType hoveredButton;
-	bool musicOff;
-	bool effectsOff;
-	bool shouldQuit;
-	bool gameOver;
-	uint16_t gameOverAnimationSteps;
-	float secondsToNextGameOverAnimation;
-	float secondsToOpenMenu;
-} TtsTetris;
+    bool isSoftDropping;
+    float secondsToFadeEnd;
+    int32_t fadingRows[4];
+    int32_t fadingRowsCount;
+    TetrisButtonType pressedButton;
+    TetrisButtonType hoveredButton;
+    bool musicOff;
+    bool effectsOff;
+    bool shouldQuit;
+    bool gameOver;
+    uint16_t gameOverAnimationSteps;
+    float secondsToNextGameOverAnimation;
+    float secondsToOpenMenu;
+} Tetris;

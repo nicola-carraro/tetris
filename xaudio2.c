@@ -1,6 +1,6 @@
-void xaudio2WavPlay(TtsTetris *tetris, IXAudio2SourceVoice **sourceVoice, Wav wav, bool loop) {
-    if (tetris->platform->hasSound) {
-        IXAudio2 *xaudio = tetris->platform->xaudio;
+static void xaudio2WavPlay(Platform *platform, IXAudio2SourceVoice **sourceVoice, Wav wav, bool loop) {
+    if (platform->hasSound && wavIsValid(wav)) {
+        IXAudio2 *xaudio = platform->xaudio;
 
         if (*sourceVoice != 0) {
             IXAudio2SourceVoice_DestroyVoice(*sourceVoice);
@@ -30,47 +30,51 @@ void xaudio2WavPlay(TtsTetris *tetris, IXAudio2SourceVoice **sourceVoice, Wav wa
         }
 
         HRESULT hr = IXAudio2_CreateSourceVoice(xaudio, sourceVoice, &waveFormat, 0, 1.0, 0, 0, 0);
+        BOOL ok = SUCCEEDED(hr);
 
-        if (SUCCEEDED(hr)) {
-            IXAudio2SourceVoice_SubmitSourceBuffer(
+        if (ok) {
+            hr = IXAudio2SourceVoice_SubmitSourceBuffer(
                 *sourceVoice,
                 &audioBuffer,
                 0
             );
+            ok = SUCCEEDED(hr);
         }
 
-        IXAudio2SourceVoice_Start(*sourceVoice, 0, 0);
+        if (ok) {
+            IXAudio2SourceVoice_Start(*sourceVoice, 0, 0);
+        }
     }
 }
 
-static void platformPlaySound(TtsTetris *tetris, Wav wav, TtsSoundType soundType) {
-    TTS_ASSERT(soundType > TtsSoundType_None);
-    TTS_ASSERT(soundType < TtsSoundType_Count);
-    bool isMusic = soundType == TtsSoundType_Music;
-    IXAudio2SourceVoice **sourceVoice = isMusic ? &tetris->platform->music : &tetris->platform->effects;
+static void platformPlaySound(Platform *platform, Wav wav, PlatformSoundType soundType) {
+    BASE_ASSERT(soundType > PlatformSoundType_None);
+    BASE_ASSERT(soundType < PlatformSoundType_Count);
+    bool isMusic = soundType == PlatformSoundType_Music;
+    IXAudio2SourceVoice **sourceVoice = isMusic ? &platform->music : &platform->effects;
 
-    xaudio2WavPlay(tetris, sourceVoice, wav, isMusic);
+    xaudio2WavPlay(platform, sourceVoice, wav, isMusic);
 }
 
-static void platformPauseSound(TtsTetris *tetris, TtsSoundType soundType) {
-    bool isMusic = soundType == TtsSoundType_Music;
-    IXAudio2SourceVoice *sourceVoice = isMusic ? tetris->platform->music : tetris->platform->effects;
+static void platformPauseSound(Platform *platform, PlatformSoundType soundType) {
+    bool isMusic = soundType == PlatformSoundType_Music;
+    IXAudio2SourceVoice *sourceVoice = isMusic ? platform->music : platform->effects;
 
     if (sourceVoice) {
         IXAudio2SourceVoice_Stop(sourceVoice, 0, 0);
     }
 }
 
-static void platformResumeSound(TtsTetris *tetris, TtsSoundType soundType) {
-    bool isMusic = soundType == TtsSoundType_Music;
-    IXAudio2SourceVoice *sourceVoice = isMusic ? tetris->platform->music : tetris->platform->effects;
+static void platformResumeSound(Platform *platform, PlatformSoundType soundType) {
+    bool isMusic = soundType == PlatformSoundType_Music;
+    IXAudio2SourceVoice *sourceVoice = isMusic ? platform->music : platform->effects;
 
     if (sourceVoice) {
         IXAudio2SourceVoice_Start(sourceVoice, 0, 0);
     }
 }
 
-void xaudio2Init(TtsPlatform *platform) {
+static void xaudio2Init(Platform *platform) {
     HRESULT hr = CoInitializeEx(0, COINIT_MULTITHREADED);
 
     bool ok = SUCCEEDED(hr);
@@ -91,6 +95,10 @@ void xaudio2Init(TtsPlatform *platform) {
             0,
             0
         );
-        platform->hasSound = true;
+        ok = SUCCEEDED(hr);
+
+        if (ok) {
+            platform->hasSound = true;
+        }
     }
 }
