@@ -43,8 +43,6 @@ typedef struct {
     uint32_t height;
 } PlatformTexture;
 
-static void platformMemset(void * pointer, int value, size_t count);
-
 static void *platformAllocate(uint64_t size);
 
 static bool platformReadEntireFile(char *path, BaseArena *arena, BaseReadResult *readResult);

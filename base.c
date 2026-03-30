@@ -10,6 +10,7 @@ static BaseString baseMakeString(char *text, uint64_t size) {
 static bool baseArenaInit(
     BaseArena *arena, uint64_t size
 ) {
+    BASE_ASSERT(size / BASE_ALIGNEMENT);
     bool result = false;
 
     void *buffer = platformAllocate(size);
@@ -25,19 +26,22 @@ static bool baseArenaInit(
 }
 
 static void *baseArenaPushSize(BaseArena *arena, uint64_t size) {
-    uint64_t newUsed = arena->used + size;
+    void *result = 0;
 
-    uint64_t alignement = 8;
+    if (size > 0) {
+        uint64_t padding = BASE_ALIGNEMENT * 4;
+        uint64_t newUsed = arena->used + size + padding;
 
-    if (newUsed % alignement != 0) {
-        newUsed = ((newUsed / alignement) + 1) * alignement;
+        if (newUsed % BASE_ALIGNEMENT != 0) {
+            newUsed = ((newUsed / BASE_ALIGNEMENT) + 1) * BASE_ALIGNEMENT;
+        }
+
+        BASE_ASSERT(newUsed <= arena->capacity);
+
+        result = ((uint8_t *) arena->buffer) + arena->used;
+        ASAN_UNPOISON_MEMORY_REGION(result, size);
+        arena->used = newUsed;
     }
-
-    BASE_ASSERT(newUsed <= arena->capacity);
-
-    void *result = ((uint8_t *) arena->buffer) + arena->used;
-    ASAN_UNPOISON_MEMORY_REGION(result, size);
-    arena->used = newUsed;
 
     return result;
 }
