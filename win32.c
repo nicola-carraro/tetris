@@ -68,6 +68,17 @@ static bool platformReadEntireFile(char *path, BaseArena *arena, BaseReadResult 
     return result;
 }
 
+static void platformMemset(void * pointer, int value, size_t count) {
+    memset(pointer, value, count);
+}
+
+static void *platformAllocate(uint64_t size) {
+    void *result = VirtualAlloc(0, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+
+    return result;
+}
+
+#ifdef PLATFORM_GRAPHICS
 static int win32MapControlToVirtualKey(PlatformControlType controlType) {
     BASE_ASSERT(controlType > PlatformControlType_None);
     BASE_ASSERT(controlType < PlatformControlType_Count);
@@ -150,13 +161,4 @@ static void win32Update(Tetris *tetris, Platform *platform, PlatformInput *input
     platform->windowHeight = newHeight;
     platformMemset(input, 0, sizeof(PlatformInput));
 }
-
-static void platformMemset(void * pointer, int value, size_t count) {
-    memset(pointer, value, count);
-}
-
-static void *platformAllocate(uint64_t size) {
-    void *result = VirtualAlloc(0, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-
-    return result;
-}
+#endif

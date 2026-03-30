@@ -3,6 +3,7 @@
 
 #include "base.h"
 #include "wav.h"
+#include "atlas.h"
 #include "platform.h"
 #include "tetris.h"
 

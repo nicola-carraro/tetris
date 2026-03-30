@@ -2,49 +2,28 @@
 #include <stdbool.h>
 
 #include "base.h"
-#include "wav.h"
-#include "platform.h"
-#include "tetris.h"
+#include "atlas.h"
 
+#include "platform.h"
 #include "base.c"
-#include "wav.c"
-#include "tetris.c"
 
 #define COBJMACROS
 #pragma warning(push, 0)
 #include <windows.h>
 #include <initguid.h>
-#include <d3d11.h>
-#include <dxgi1_2.h>
-#include <dxgi1_3.h>
-#include <dxgidebug.h>
-#include <d3dcompiler.h>
 #include <stdio.h>
-#include <xaudio2.h>
 #pragma warning(pop)
 
-#include "win32.h"
-#include "d3d11.h"
-
 #include "win32.c"
-#include "d3d11.c"
-#include "xaudio2.c"
 
 #pragma warning(push, 0)
 #include "cdwrite.h"
 #pragma warning(pop)
 
 #pragma comment(lib, "Gdi32")
-#pragma comment(lib, "User32")
-#pragma comment(lib, "Ole32.lib")
-
-typedef struct {
-    uint32_t codepoint;
-    uint32_t heightInDesignUnits;
-} AtlGlyphHeight;
 
 static int compareGlyphHeightDescending(const void *l, const void *r) {
-    return ((AtlGlyphHeight *)r)->heightInDesignUnits - ((AtlGlyphHeight *)l)->heightInDesignUnits;
+    return ((AtlasGlyphHeight *)r)->heightInDesignUnits - ((AtlasGlyphHeight *)l)->heightInDesignUnits;
 }
 
 int WinMain(
@@ -76,7 +55,7 @@ int WinMain(
     IDWriteFontFile* fontFile = 0;
     hr = IDWriteFactory_CreateFontFileReference(
         factory,
-        TETRIS_FONT_PATH,
+        ATLAS_FONT_PATH,
         0,
         &fontFile
     );
@@ -122,7 +101,7 @@ int WinMain(
     BASE_ASSERT(buffer);
 
     HANDLE fontFileHandle = CreateFileW(
-        TETRIS_FONT_PATH,
+        ATLAS_FONT_PATH,
         GENERIC_READ,
         FILE_SHARE_READ,
         0,
@@ -144,9 +123,9 @@ int WinMain(
     BASE_ASSERT(ok);
 
     uint64_t fontFileSize = numberOfBytesRead;
-    UINT32 codepoints[TETRIS_CODEPOINT_COUNT] = {0};
+    UINT32 codepoints[ATLAS_CODEPOINT_COUNT] = {0};
     for (uint32_t codepointIndex = 0; codepointIndex < BASE_ARRAYCOUNT(codepoints); codepointIndex++) {
-        codepoints[codepointIndex] =  TETRIS_FIRST_CODEPOINT + codepointIndex;
+        codepoints[codepointIndex] =  ATLAS_FIRST_CODEPOINT + codepointIndex;
     }
 
     DWRITE_FONT_METRICS fontFaceMetrics = {0};
@@ -184,9 +163,9 @@ int WinMain(
     );
     BASE_ASSERT(SUCCEEDED(hr));
 
-    AtlGlyphHeight glyphHeights [TETRIS_CODEPOINT_COUNT] = {0};
+    AtlasGlyphHeight glyphHeights [ATLAS_CODEPOINT_COUNT] = {0};
 
-    TetrisAtlas atlas = {0};
+    Atlas atlas = {0};
     for (uint32_t codepointIndex = 0; codepointIndex < BASE_ARRAYCOUNT(codepoints); codepointIndex++) {
         atlas.glyphs[codepointIndex].codepoint = codepoints[codepointIndex];
         atlas.glyphs[codepointIndex].index = glyphIndices[codepointIndex];
@@ -211,7 +190,7 @@ int WinMain(
     uint8_t *targetPixels = (uint8_t *)buffer + fontFileSize;
 
     for (uint32_t glyphIndex = 0; glyphIndex < BASE_ARRAYCOUNT(atlas.glyphs); glyphIndex++) {
-        TetrisGlyph *glyph = atlas.glyphs + glyphHeights[glyphIndex].codepoint - TETRIS_FIRST_CODEPOINT;
+        AtlasGlyph *glyph = atlas.glyphs + glyphHeights[glyphIndex].codepoint - ATLAS_FIRST_CODEPOINT;
 
         HDC dc = IDWriteBitmapRenderTarget_GetMemoryDC(renderTarget);
 
@@ -310,7 +289,7 @@ int WinMain(
 
     int32_t bitmapHeight = yOffset + lineHeight;
     {
-        HANDLE file = CreateFileA(TETRIS_ATLAS_PATH, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+        HANDLE file = CreateFileA(ATLAS_PATH, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
         BASE_ASSERT(file);
         DWORD bytesWritten = 0;
         atlas.width = (float)bitmapWidth;

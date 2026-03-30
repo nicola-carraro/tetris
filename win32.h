@@ -41,11 +41,15 @@ struct Platform {
     ID3D11SamplerState *samplerState;
     ID3D11ShaderResourceView *textureView;
     ID3D11BlendState *blendState;
+
+    #ifdef PLATFORM_SOUND
     IXAudio2 *xaudio;
     IXAudio2MasteringVoice *masteringVoice;
     IXAudio2SourceVoice *music;
     IXAudio2SourceVoice *effects;
     Win32Vertices vertices;
+    #endif
+
     LONGLONG performanceFrequency;
     LONGLONG previousTicks;
     bool hasSound;

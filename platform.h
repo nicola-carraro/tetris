@@ -43,6 +43,15 @@ typedef struct {
     uint32_t height;
 } PlatformTexture;
 
+static void platformMemset(void * pointer, int value, size_t count);
+
+static void *platformAllocate(uint64_t size);
+
+static bool platformReadEntireFile(char *path, BaseArena *arena, BaseReadResult *readResult);
+
+static void platformDebugPrint(_Printf_format_string_ const char *format, ...);
+
+#ifdef PLATFORM_GRAPHICS
 static void platformDrawTextureQuad(
     Platform *platform,
     float x, float y,
@@ -61,7 +70,9 @@ static void platformDrawColorTriangle(
     float x3, float y3,
     float r, float g, float b, float a
 );
+#endif
 
+#ifdef PLATFORM_SOUND
 typedef enum {
     PlatformSoundType_None,
 
@@ -71,16 +82,9 @@ typedef enum {
     PlatformSoundType_Count,
 } PlatformSoundType;
 
-static bool platformReadEntireFile(char *path, BaseArena *arena, BaseReadResult *readResult);
-
-static void platformDebugPrint(_Printf_format_string_ const char *format, ...);
-
 static void platformPlaySound(Platform *platform, Wav wav, PlatformSoundType soundType);
 
 static void platformPauseSound(Platform *platform, PlatformSoundType soundType);
 
 static void platformResumeSound(Platform *platform, PlatformSoundType soundType);
-
-static void platformMemset(void * pointer, int value, size_t count);
-
-static void *platformAllocate(uint64_t size);
+#endif

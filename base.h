@@ -3,6 +3,8 @@
 #define BASE_ARRAYCOUNT(a) (sizeof(a) / sizeof(*a))
 #define BASE_UNREFERENCED(a) a
 #define BASE_MAKE_STRING(a) baseMakeString((a), (sizeof(a) - 1))
+#define BASE_MAX(a, b) ((a) > (b) ? (a) : (b))
+#define BASE_MIN(a, b) ((a) < (b) ? (a) : (b))
 
 typedef struct {
     char *text;

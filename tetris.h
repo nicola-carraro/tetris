@@ -1,41 +1,12 @@
-#define TETRIS_FIRST_CODEPOINT L' '
-#define TETRIS_LAST_CODEPOINT  L'~'
-#define TETRIS_CODEPOINT_COUNT (TETRIS_LAST_CODEPOINT - TETRIS_FIRST_CODEPOINT + 1)
-#define TETRIS_PIXELS_PER_POINT 1.33333333333333333f
-#define TETRIS_POINTS_PER_PIXEL 0.75f
-#define TETRIS_FONT_PATH L"../data/Handjet-Regular.ttf"
-#define TETRIS_ATLAS_PATH "../data/atlas.dat"
 #define TETRIS_COLUMN_COUNT 10
 #define TETRIS_ROW_COUNT    19
 #define TETRIS_MAX_WIDTH_RATIO 0.8f
 #define TETRIS_MAX_HEIGTH_RATIO 0.8f
-#define TETRIS_MAX(a, b) ((a) > (b) ? (a) : (b))
-#define TETRIS_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define TETRIS_FADE_SECONDS 0.5f
 #define TETRIS_DATA_DIR "../data/"
 #define TETRIS_ALLOCATION_SIZE (512 * 1024 * 1024)
 #define TETRIS_LEVEL_COUNT_PLUS_ONE 16
 #define TETRIS_LINES_PER_LEVEL 10
-#define TETRIS_ENABLE_CHEAT
-
-typedef struct {
-    uint32_t codepoint;
-    uint16_t index;
-    float xOffsetInPixels;
-    float yOffsetInPixels;
-    float advanceWidthInPixels;
-    float bitmapXInPixels;
-    float bitmapYInPixels;
-    float bitmapWidthInPixels;
-    float bitmapHeightInPixels;
-} TetrisGlyph;
-
-typedef struct {
-    float width;
-    float height;
-    float lineHeightInPixels;
-    TetrisGlyph glyphs[TETRIS_CODEPOINT_COUNT];
-} TetrisAtlas;
 
 typedef enum {
     TetrisHorizontalDirection_None,
@@ -156,7 +127,7 @@ typedef struct  {
 }TetrisLayout;
 
 typedef struct {
-    TetrisAtlas atlas;
+    Atlas atlas;
     BaseArena arena;
     bool wasResizing;
     bool menuOpen;

@@ -34,7 +34,7 @@ static bool tetrisControlDown(PlatformInput input, PlatformControlType controlTy
 static void tetrisDrawGlyph(
     Tetris *tetris,
     Platform *platform,
-    TetrisGlyph glyph,
+    AtlasGlyph glyph,
     float x, float y,
     float scale,
     BaseColor color
@@ -64,13 +64,13 @@ static void tetrisDrawString(
 ) {
     for (char codepointIndex = 0; codepointIndex < string.size; codepointIndex++) {
         char codepoint = string.text[codepointIndex];
-        BASE_ASSERT(codepoint >= TETRIS_FIRST_CODEPOINT);
-        BASE_ASSERT(codepoint <= TETRIS_LAST_CODEPOINT);
+        BASE_ASSERT(codepoint >= ATLAS_FIRST_CODEPOINT);
+        BASE_ASSERT(codepoint <= ATLAS_LAST_CODEPOINT);
 
-        uint32_t index = codepoint - TETRIS_FIRST_CODEPOINT;
+        uint32_t index = codepoint - ATLAS_FIRST_CODEPOINT;
         BASE_ASSERT(index < BASE_ARRAYCOUNT(tetris->atlas.glyphs));
 
-        TetrisGlyph glyph = tetris->atlas.glyphs[index];
+        AtlasGlyph glyph = tetris->atlas.glyphs[index];
         tetrisDrawGlyph(
             tetris,
             platform,
@@ -89,13 +89,13 @@ static bool tetrisInit(Tetris *tetris, uint64_t platformSize, uint32_t seed, Pla
 
     if (baseArenaInit(&tetris->arena, TETRIS_ALLOCATION_SIZE)) {
         BaseReadResult file = {0};
-        ok = platformReadEntireFile(TETRIS_ATLAS_PATH, &tetris->arena, &file);
+        ok = platformReadEntireFile(ATLAS_PATH, &tetris->arena, &file);
 
         if (ok && file.data) {
-            TetrisAtlas *atlas = (TetrisAtlas *)file.data;
+            Atlas *atlas = (Atlas *)file.data;
             tetris->atlas = *atlas;
             tetris->seed = seed;
-            texture->data = (uint8_t *)file.data + sizeof(TetrisAtlas);
+            texture->data = (uint8_t *)file.data + sizeof(Atlas);
             texture->width = (uint32_t)atlas->width;
             texture->height = (uint32_t)atlas->height;
 
@@ -753,10 +753,10 @@ static TetrisPatternFeatures tetrisGetPatternFeatures(TetrisPieceType type) {
 
     for (uint32_t cellIndex = 0; cellIndex < BASE_ARRAYCOUNT(pattern.cellCenters); cellIndex++) {
         TetrisFloatCoords center = pattern.cellCenters[cellIndex];
-        minCenterX = TETRIS_MIN(center.x, minCenterX);
-        minCenterY = TETRIS_MIN(center.y, minCenterY);
-        maxCenterX = TETRIS_MAX(center.x, maxCenterX);
-        maxCenterY = TETRIS_MAX(center.y, maxCenterY);
+        minCenterX = BASE_MIN(center.x, minCenterX);
+        minCenterY = BASE_MIN(center.y, minCenterY);
+        maxCenterX = BASE_MAX(center.x, maxCenterX);
+        maxCenterY = BASE_MAX(center.y, maxCenterY);
     }
 
     TetrisPatternFeatures result = {0};
@@ -837,6 +837,8 @@ static void tetrisAddClearedRows(Tetris *tetris, Platform *platform, uint32_t ro
             scoreIncrement = 800;
         } break;
     }
+	uint32_t previousLevel = tetrisGetCurrentLevel(tetris);
+	scoreIncrement *= previousLevel;
 
     if (tetris->fadingRowsCount > 0) {
         tetris->secondsToFadeEnd = TETRIS_FADE_SECONDS;
@@ -844,7 +846,7 @@ static void tetrisAddClearedRows(Tetris *tetris, Platform *platform, uint32_t ro
     }
 
     tetris->score += scoreIncrement;
-    uint32_t previousLevel = tetrisGetCurrentLevel(tetris);
+    
     tetris->clearedRows += rowsCount;
     uint32_t currentLevel = tetrisGetCurrentLevel(tetris);
 
@@ -952,12 +954,12 @@ static void tetrisDrawNextPiece(Tetris * tetris, Platform *platform, float boxX,
     );
 }
 
-static float tetrisGetStringWidthInPixels(TetrisAtlas font, BaseString string) {
+static float tetrisGetStringWidthInPixels(Atlas font, BaseString string) {
     float result = 0.0f;
 
     for (uint32_t glyphIndex = 0; glyphIndex < string.size; glyphIndex++) {
         char c = string.text[glyphIndex];
-        TetrisGlyph glyph = font.glyphs[c - TETRIS_FIRST_CODEPOINT];
+        AtlasGlyph glyph = font.glyphs[c - ATLAS_FIRST_CODEPOINT];
 
         if (glyphIndex == string.size - 1) {
             result += glyph.bitmapWidthInPixels;
