@@ -8,6 +8,7 @@
 #include "tetris.h"
 #include "app.h"
 
+#include <sanitizer/asan_interface.h>
 #include "base.c"
 
 #include "wav.c"

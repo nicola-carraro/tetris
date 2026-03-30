@@ -5,6 +5,7 @@
 #include "atlas.h"
 
 #include "platform.h"
+#include <sanitizer/asan_interface.h>
 #include "base.c"
 
 #define COBJMACROS

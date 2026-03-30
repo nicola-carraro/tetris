@@ -15,6 +15,7 @@ static bool baseArenaInit(
     void *buffer = platformAllocate(size);
 
     if (buffer) {
+        ASAN_POISON_MEMORY_REGION(buffer, size);
         arena->capacity = size;
         arena->buffer = buffer;
         result = true;
@@ -35,7 +36,7 @@ static void *baseArenaPushSize(BaseArena *arena, uint64_t size) {
     BASE_ASSERT(newUsed <= arena->capacity);
 
     void *result = ((uint8_t *) arena->buffer) + arena->used;
-
+    ASAN_UNPOISON_MEMORY_REGION(result, size);
     arena->used = newUsed;
 
     return result;
