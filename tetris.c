@@ -1023,7 +1023,7 @@ static void tetrisOpenMenu(Tetris *tetris) {
 }
 
 static void tetrisNewGame(Tetris *tetris, Platform *platform) {
-    platformMemset(tetris->grid, 0, sizeof(tetris->grid));
+    memset(tetris->grid, 0, sizeof(tetris->grid));
     tetris->score = 0;
     tetris->clearedRows = 0;
     tetris->isHardDropping = false;

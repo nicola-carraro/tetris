@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdbool.h>
+#include <memory.h>
 
 #include "base.h"
 #include "wav.h"

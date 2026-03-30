@@ -159,6 +159,6 @@ static void win32Update(AppState *state, Platform *platform, PlatformInput *inpu
     d3d11Render(platform, platform->windowWidth, platform->windowHeight, newWidth, newHeight);
     platform->windowWidth = newWidth;
     platform->windowHeight = newHeight;
-    platformMemset(input, 0, sizeof(PlatformInput));
+    memset(input, 0, sizeof(PlatformInput));
 }
 #endif
