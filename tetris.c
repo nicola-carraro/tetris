@@ -837,8 +837,8 @@ static void tetrisAddClearedRows(Tetris *tetris, Platform *platform, uint32_t ro
             scoreIncrement = 800;
         } break;
     }
-	uint32_t previousLevel = tetrisGetCurrentLevel(tetris);
-	scoreIncrement *= previousLevel;
+    uint32_t previousLevel = tetrisGetCurrentLevel(tetris);
+    scoreIncrement *= previousLevel;
 
     if (tetris->fadingRowsCount > 0) {
         tetris->secondsToFadeEnd = TETRIS_FADE_SECONDS;
@@ -846,7 +846,7 @@ static void tetrisAddClearedRows(Tetris *tetris, Platform *platform, uint32_t ro
     }
 
     tetris->score += scoreIncrement;
-    
+
     tetris->clearedRows += rowsCount;
     uint32_t currentLevel = tetrisGetCurrentLevel(tetris);
 
