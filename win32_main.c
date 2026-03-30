@@ -6,6 +6,7 @@
 #include "atlas.h"
 #include "platform.h"
 #include "tetris.h"
+#include "app.h"
 
 #include "base.c"
 
@@ -56,12 +57,12 @@ LRESULT windowProc(
             case WM_PAINT: {
                 PAINTSTRUCT paint = {0};
                 BeginPaint(window, &paint);
-                win32Update(&windowProcParams->tetris, windowProcParams->platform, &windowProcParams->input);
+                win32Update(&windowProcParams->state, windowProcParams->platform, &windowProcParams->input);
                 EndPaint(window, &paint);
             } break;
 
             case WM_SIZE: {
-                win32Update(&windowProcParams->tetris, windowProcParams->platform, &windowProcParams->input);
+                win32Update(&windowProcParams->state, windowProcParams->platform, &windowProcParams->input);
             } break;
 
             case WM_ENTERSIZEMOVE: {
@@ -153,7 +154,7 @@ int WinMain(
     GetSystemTimePreciseAsFileTime(&systemTime);
     DWORD seed = systemTime.dwLowDateTime;
 
-    if (tetrisInit(&windowProcParams.tetris, sizeof(Platform), seed, &windowProcParams.platform, &texture)){
+    if (APP_INIT(&windowProcParams.state, sizeof(Platform), seed, &windowProcParams.platform, &texture)){
         WNDCLASSEXA windowClass = {0};
 
         windowProcParams.platform->performanceFrequency = win32QueryPerformanceFrequency();
@@ -211,7 +212,7 @@ int WinMain(
                         }
 
                         if (running) {
-                            win32Update(&windowProcParams.tetris, windowProcParams.platform, &windowProcParams.input);
+                            win32Update(&windowProcParams.state, windowProcParams.platform, &windowProcParams.input);
                         }
                     }
                 }

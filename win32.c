@@ -117,8 +117,8 @@ static PlatformControlType win32MapVirtualKeyToControl(int virtualKey) {
     return result;
 }
 
-static void win32Update(Tetris *tetris, Platform *platform, PlatformInput *input) {
-    BASE_ASSERT(tetris);
+static void win32Update(AppState *state, Platform *platform, PlatformInput *input) {
+    BASE_ASSERT(state);
     BASE_ASSERT(platform);
     RECT rect = {0};
     GetClientRect(platform->window, &rect);
@@ -150,7 +150,7 @@ static void win32Update(Tetris *tetris, Platform *platform, PlatformInput *input
     platform->previousTicks = currentTicks;
 
     bool shouldQuit = false;
-    tetrisUpdate(tetris, platform, *input, &shouldQuit);
+    APP_UPDATE(state, platform, *input, &shouldQuit);
 
     if (shouldQuit) {
         PostQuitMessage(0);

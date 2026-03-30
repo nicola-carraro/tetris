@@ -22,7 +22,7 @@ typedef struct  {
 } Win32Vertices;
 
 typedef struct {
-    Tetris tetris;
+    AppState state;
     PlatformInput input;
     Platform *platform;
 } Win32WindowProcParams;
