@@ -1083,7 +1083,12 @@ static void tetrisDrawLabel(Tetris *tetris, Platform *platform, float x, float y
     );
 }
 
-static void tetrisDrawNumberLabel(Tetris *tetris, Platform *platform, float x, float y, float width, float height, float margin, BaseString label, BaseColor backgroundColor, BaseColor fontColor, uint32_t number) {
+static void tetrisDrawNumberLabel(
+    Tetris *tetris, Platform *platform,
+    float x, float y, float width, float height, float margin,
+    BaseString label,
+    BaseColor backgroundColor, BaseColor fontColor, uint32_t number
+) {
     {
         tetrisDrawLabel(tetris, platform, x,  y,  width,  height,  margin,  label,  backgroundColor,  fontColor);
         char buffer[256] = {0};
@@ -1102,7 +1107,13 @@ static void tetrisDrawNumberLabel(Tetris *tetris, Platform *platform, float x, f
     }
 }
 
-static void tetrisDrawNextPieceLabel(Tetris *tetris, Platform *platform, float x, float y, float width, float height, float margin,  BaseColor backgroundColor, BaseColor fontColor, float cellSideInPixels) {
+static void tetrisDrawNextPieceLabel(
+    Tetris *tetris, Platform *platform,
+    float x, float y, float width, float height,
+    float margin,
+    BaseColor backgroundColor, BaseColor fontColor,
+    float cellSideInPixels
+) {
     {
         float boxMargin = 5.0f;
 

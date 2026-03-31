@@ -475,8 +475,12 @@ static void platformDrawColorTriangle(
     );
 }
 
-static void d3d11Render(Platform *platform, UINT oldWidth, UINT oldHeight, UINT newWidth, UINT newHeight) {
+static void d3d11Render(Platform *platform, UINT newWidth, UINT newHeight) {
     HRESULT hr = E_FAIL;
+
+    UINT oldWidth = platform->windowWidth;
+    UINT oldHeight = platform->windowHeight;
+
     if (!platform->renderTargetView || oldWidth != newWidth || oldHeight != newHeight) {
         if (platform->renderTargetView) {
             ID3D11RenderTargetView_Release(platform->renderTargetView);

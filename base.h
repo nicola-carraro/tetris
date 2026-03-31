@@ -5,6 +5,7 @@
 #define BASE_MAKE_STRING(a) baseMakeString((a), (sizeof(a) - 1))
 #define BASE_MAX(a, b) ((a) > (b) ? (a) : (b))
 #define BASE_MIN(a, b) ((a) < (b) ? (a) : (b))
+#define BASE_ALIGNEMENT 8
 
 typedef struct {
     char *text;
