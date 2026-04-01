@@ -40,7 +40,7 @@ static BOOL d3d11Init(Platform *platform, PlatformTexture texture) {
     BOOL ok = 0;
     UINT flags = 0;
 
-    #ifdef TETRIS_DEBUG
+    #ifdef BASE_DEBUG
     flags = D3D11_CREATE_DEVICE_DEBUG;
     {
         IDXGIInfoQueue *infoQueue;
@@ -74,7 +74,7 @@ static BOOL d3d11Init(Platform *platform, PlatformTexture texture) {
     );
     ok = SUCCEEDED(hr);
 
-    #ifdef TETRIS_DEBUG
+    #ifdef BASE_DEBUG
     {
         BASE_ASSERT(ok);
 

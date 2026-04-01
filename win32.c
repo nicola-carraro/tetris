@@ -40,7 +40,8 @@ static bool platformReadEntireFile(char *path, BaseArena *arena, BaseReadResult 
         LONGLONG fileSize = win32GetFileSize(file);
 
         void *destination = 0;
-        baseArenaPushSize(arena, fileSize, &destination);
+
+        baseArenaPushSize(arena, (size_t)fileSize, &destination);
 
         LONGLONG remainingBytesToRead = fileSize;
 
@@ -73,7 +74,7 @@ static void platformMemset(void * pointer, int value, size_t count) {
     memset(pointer, value, count);
 }
 
-static void *platformAllocate(uint64_t size) {
+static void *platformAllocate(size_t size) {
     void *result = VirtualAlloc(0, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
     return result;

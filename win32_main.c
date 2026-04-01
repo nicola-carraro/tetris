@@ -42,7 +42,7 @@
 #pragma comment(lib, "d3dcompiler")
 #pragma comment(lib, "Ole32")
 
-LRESULT windowProc(
+LRESULT CALLBACK windowProc(
     HWND window,
     UINT message,
     WPARAM wParam,
@@ -139,7 +139,7 @@ LRESULT windowProc(
     return result;
 }
 
-int WinMain(
+int __stdcall WinMain(
     _In_     HINSTANCE instance,
     _In_opt_ HINSTANCE previousInstance,
     _In_     LPSTR     commandLine,

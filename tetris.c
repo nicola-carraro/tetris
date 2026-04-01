@@ -84,7 +84,7 @@ static void tetrisDrawString(
     }
 }
 
-static bool tetrisInit(Tetris *tetris, uint64_t platformSize, uint32_t seed, Platform **platform, PlatformTexture *texture) {
+static bool tetrisInit(Tetris *tetris, size_t platformSize, uint32_t seed, Platform **platform, PlatformTexture *texture) {
     BASE_ASSERT(tetris);
     BASE_ASSERT(platform);
     BASE_ASSERT(texture);
@@ -663,6 +663,7 @@ static TetrisPiece tetrisOffsetCells(TetrisPiece cells, int32_t x, int32_t y) {
 
 static bool tryRotation(Tetris *tetris, TetrisRotationType newRotation, float xOffsetInCells, float yOffsetInCells) {
     bool ok = false;
+
     TetrisPiece targetCells = tetrisGetPieceCells(
         tetris->playerType,
         newRotation,
