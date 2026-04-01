@@ -39,7 +39,8 @@ static bool platformReadEntireFile(char *path, BaseArena *arena, BaseReadResult 
     if (file != INVALID_HANDLE_VALUE) {
         LONGLONG fileSize = win32GetFileSize(file);
 
-        void *destination = baseArenaPushSize(arena, fileSize);
+        void *destination = 0;
+        baseArenaPushSize(arena, fileSize, &destination);
 
         LONGLONG remainingBytesToRead = fileSize;
 

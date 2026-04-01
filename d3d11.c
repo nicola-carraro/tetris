@@ -366,6 +366,8 @@ static BOOL d3d11Init(Platform *platform, PlatformTexture texture) {
         ok = SUCCEEDED(hr);
     }
 
+    platform->hasGraphics = ok;
+
     return ok;
 }
 
@@ -476,131 +478,133 @@ static void platformDrawColorTriangle(
 }
 
 static void d3d11Render(Platform *platform, UINT newWidth, UINT newHeight) {
-    HRESULT hr = E_FAIL;
+    if (platform->hasGraphics) {
+        HRESULT hr = E_FAIL;
 
-    UINT oldWidth = platform->windowWidth;
-    UINT oldHeight = platform->windowHeight;
+        UINT oldWidth = platform->windowWidth;
+        UINT oldHeight = platform->windowHeight;
 
-    if (!platform->renderTargetView || oldWidth != newWidth || oldHeight != newHeight) {
-        if (platform->renderTargetView) {
-            ID3D11RenderTargetView_Release(platform->renderTargetView);
+        if (!platform->renderTargetView || oldWidth != newWidth || oldHeight != newHeight) {
+            if (platform->renderTargetView) {
+                ID3D11RenderTargetView_Release(platform->renderTargetView);
+            }
+            IDXGISwapChain1_ResizeBuffers(platform->swapChain, 0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
+
+            D3D11_MAPPED_SUBRESOURCE mappedSubresource = {0};
+            hr = ID3D11DeviceContext_Map(
+                platform->deviceContext,
+                (ID3D11Resource *) platform->constantBuffer,
+                0,
+                D3D11_MAP_WRITE_DISCARD,
+
+                0,
+                &mappedSubresource
+            );
+            if (SUCCEEDED(hr) && mappedSubresource.pData) {
+                Win32VsConstants *destination = (Win32VsConstants *) mappedSubresource.pData;
+                destination->windowWidth = (float)newWidth;
+                destination->windowHeight = (float)newHeight;
+
+                ID3D11DeviceContext_Unmap(
+                    platform->deviceContext,
+                    (ID3D11Resource *) platform->constantBuffer,
+                    0
+                );
+            }
+
+            ID3D11Texture2D *renderTarget = 0;
+            if (SUCCEEDED(IDXGISwapChain1_GetBuffer(platform->swapChain, 0, &IID_ID3D11Texture2D, (void **)&renderTarget))) {
+                ID3D11Device_CreateRenderTargetView(platform->device, (ID3D11Resource *) renderTarget, 0, &platform->renderTargetView);
+                ID3D11Texture2D_Release(renderTarget);
+            }
         }
-        IDXGISwapChain1_ResizeBuffers(platform->swapChain, 0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
+
+        float backgroundColor[4] = {255.0f, 255.0f, 0.0f, 255.0f};
+
+        ID3D11DeviceContext_ClearRenderTargetView(
+            platform->deviceContext,
+            platform->renderTargetView,
+            backgroundColor
+        );
 
         D3D11_MAPPED_SUBRESOURCE mappedSubresource = {0};
+
         hr = ID3D11DeviceContext_Map(
             platform->deviceContext,
-            (ID3D11Resource *) platform->constantBuffer,
+            (ID3D11Resource *) platform->vertexBuffer,
             0,
             D3D11_MAP_WRITE_DISCARD,
 
             0,
             &mappedSubresource
         );
+
         if (SUCCEEDED(hr) && mappedSubresource.pData) {
-            Win32VsConstants *destination = (Win32VsConstants *) mappedSubresource.pData;
-            destination->windowWidth = (float)newWidth;
-            destination->windowHeight = (float)newHeight;
+            Win32Vertex *destination = (Win32Vertex *) mappedSubresource.pData;
+            for (uint32_t vertexIndex = 0; vertexIndex < platform->vertices.vertexCount; vertexIndex++) {
+                destination[vertexIndex] =  platform->vertices.vertices[vertexIndex];
+            }
 
             ID3D11DeviceContext_Unmap(
                 platform->deviceContext,
-                (ID3D11Resource *) platform->constantBuffer,
+                (ID3D11Resource *) platform->vertexBuffer,
                 0
             );
         }
 
-        ID3D11Texture2D *renderTarget = 0;
-        if (SUCCEEDED(IDXGISwapChain1_GetBuffer(platform->swapChain, 0, &IID_ID3D11Texture2D, (void **)&renderTarget))) {
-            ID3D11Device_CreateRenderTargetView(platform->device, (ID3D11Resource *) renderTarget, 0, &platform->renderTargetView);
-            ID3D11Texture2D_Release(renderTarget);
-        }
-    }
+        UINT stride = sizeof(Win32Vertex);
+        UINT offset = 0;
 
-    float backgroundColor[4] = {255.0f, 255.0f, 0.0f, 255.0f};
-
-    ID3D11DeviceContext_ClearRenderTargetView(
-        platform->deviceContext,
-        platform->renderTargetView,
-        backgroundColor
-    );
-
-    D3D11_MAPPED_SUBRESOURCE mappedSubresource = {0};
-
-    hr = ID3D11DeviceContext_Map(
-        platform->deviceContext,
-        (ID3D11Resource *) platform->vertexBuffer,
-        0,
-        D3D11_MAP_WRITE_DISCARD,
-
-        0,
-        &mappedSubresource
-    );
-
-    if (SUCCEEDED(hr) && mappedSubresource.pData) {
-        Win32Vertex *destination = (Win32Vertex *) mappedSubresource.pData;
-        for (uint32_t vertexIndex = 0; vertexIndex < platform->vertices.vertexCount; vertexIndex++) {
-            destination[vertexIndex] =  platform->vertices.vertices[vertexIndex];
-        }
-
-        ID3D11DeviceContext_Unmap(
+        ID3D11DeviceContext_IASetVertexBuffers(
             platform->deviceContext,
-            (ID3D11Resource *) platform->vertexBuffer,
-            0
+            0,
+            1,
+            &platform->vertexBuffer,
+            &stride,
+            &offset
         );
+
+        ID3D11DeviceContext_VSSetConstantBuffers(
+            platform->deviceContext,
+            0,
+            1,
+            &platform->constantBuffer
+        );
+
+        D3D11_VIEWPORT viewport = {0};
+        {
+            viewport.TopLeftX = 0.0f;
+            viewport.TopLeftY = 0.0f;
+            viewport.Width = (float)newWidth;
+            viewport.Height = (float)newHeight;
+            viewport.MinDepth = 0.0f;
+            viewport.MaxDepth = 0.0f;
+        }
+
+        ID3D11DeviceContext_IASetPrimitiveTopology(platform->deviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+        ID3D11DeviceContext_IASetInputLayout(platform->deviceContext, platform->inputLayout);
+
+        ID3D11DeviceContext_RSSetViewports(platform->deviceContext, 1, &viewport);
+
+        ID3D11DeviceContext_VSSetShader(platform->deviceContext, platform->vertexShader, 0, 0);
+
+        ID3D11DeviceContext_PSSetShader(platform->deviceContext, platform->pixelShader, 0, 0);
+
+        ID3D11DeviceContext_PSSetSamplers(platform->deviceContext, 0, 1, &platform->samplerState);
+
+        ID3D11DeviceContext_PSSetShaderResources(platform->deviceContext, 0, 1, &platform->textureView);
+
+        ID3D11DeviceContext_OMSetRenderTargets(platform->deviceContext, 1, &platform->renderTargetView, 0);
+
+        ID3D11DeviceContext_OMSetBlendState(platform->deviceContext, platform->blendState, 0, 0xffffffff);
+
+        ID3D11DeviceContext_Draw(platform->deviceContext, platform->vertices.vertexCount, 0);
+
+        IDXGISwapChain1_Present(platform->swapChain, 1, 0);
+
+        ID3D11DeviceContext_ClearState(platform->deviceContext);
+
+        platform->vertices.vertexCount = 0;
     }
-
-    UINT stride = sizeof(Win32Vertex);
-    UINT offset = 0;
-
-    ID3D11DeviceContext_IASetVertexBuffers(
-        platform->deviceContext,
-        0,
-        1,
-        &platform->vertexBuffer,
-        &stride,
-        &offset
-    );
-
-    ID3D11DeviceContext_VSSetConstantBuffers(
-        platform->deviceContext,
-        0,
-        1,
-        &platform->constantBuffer
-    );
-
-    D3D11_VIEWPORT viewport = {0};
-    {
-        viewport.TopLeftX = 0.0f;
-        viewport.TopLeftY = 0.0f;
-        viewport.Width = (float)newWidth;
-        viewport.Height = (float)newHeight;
-        viewport.MinDepth = 0.0f;
-        viewport.MaxDepth = 0.0f;
-    }
-
-    ID3D11DeviceContext_IASetPrimitiveTopology(platform->deviceContext, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-    ID3D11DeviceContext_IASetInputLayout(platform->deviceContext, platform->inputLayout);
-
-    ID3D11DeviceContext_RSSetViewports(platform->deviceContext, 1, &viewport);
-
-    ID3D11DeviceContext_VSSetShader(platform->deviceContext, platform->vertexShader, 0, 0);
-
-    ID3D11DeviceContext_PSSetShader(platform->deviceContext, platform->pixelShader, 0, 0);
-
-    ID3D11DeviceContext_PSSetSamplers(platform->deviceContext, 0, 1, &platform->samplerState);
-
-    ID3D11DeviceContext_PSSetShaderResources(platform->deviceContext, 0, 1, &platform->textureView);
-
-    ID3D11DeviceContext_OMSetRenderTargets(platform->deviceContext, 1, &platform->renderTargetView, 0);
-
-    ID3D11DeviceContext_OMSetBlendState(platform->deviceContext, platform->blendState, 0, 0xffffffff);
-
-    ID3D11DeviceContext_Draw(platform->deviceContext, platform->vertices.vertexCount, 0);
-
-    IDXGISwapChain1_Present(platform->swapChain, 1, 0);
-
-    ID3D11DeviceContext_ClearState(platform->deviceContext);
-
-    platform->vertices.vertexCount = 0;
 }

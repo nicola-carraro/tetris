@@ -85,6 +85,10 @@ static void tetrisDrawString(
 }
 
 static bool tetrisInit(Tetris *tetris, uint64_t platformSize, uint32_t seed, Platform **platform, PlatformTexture *texture) {
+    BASE_ASSERT(tetris);
+    BASE_ASSERT(platform);
+    BASE_ASSERT(texture);
+
     bool ok = false;
 
     if (baseArenaInit(&tetris->arena, TETRIS_ALLOCATION_SIZE)) {
@@ -99,7 +103,7 @@ static bool tetrisInit(Tetris *tetris, uint64_t platformSize, uint32_t seed, Pla
             texture->width = (uint32_t)atlas->width;
             texture->height = (uint32_t)atlas->height;
 
-            *platform = baseArenaPushSize(&tetris->arena , platformSize);
+            baseArenaPushSize(&tetris->arena , platformSize, platform);
 
             char musicPaths[TetrisMusic_Count][256] = {
                 [TetrisMusic_Theme] = TETRIS_DATA_DIR "theme.wav",
@@ -1697,6 +1701,10 @@ static void tetrisDoAutoOpenMenu(Tetris *tetris,  Platform *platform, PlatformIn
 }
 
 static void tetrisUpdate(Tetris *tetris, Platform *platform, PlatformInput input, bool *shouldQuit) {
+    BASE_ASSERT(tetris);
+    BASE_ASSERT(platform);
+    BASE_ASSERT(shouldQuit);
+
     if (tetris->frame == 0) {
         tetrisNewGame(tetris, platform);
     }

@@ -24,8 +24,8 @@ static bool baseArenaInit(BaseArena *arena, uint64_t size) {
     return result;
 }
 
-static void *baseArenaPushSize(BaseArena *arena, uint64_t size) {
-    void *result = 0;
+static void baseArenaPushSize(BaseArena *arena, uint64_t size, void **result) {
+    BASE_ASSERT(result);
 
     if (size > 0) {
         uint64_t padding = BASE_ALIGNEMENT * 4;
@@ -37,14 +37,12 @@ static void *baseArenaPushSize(BaseArena *arena, uint64_t size) {
 
         BASE_ASSERT(newUsed <= arena->capacity);
 
-        result = ((uint8_t *) arena->buffer) + arena->used;
+        *result = ((uint8_t *) arena->buffer) + arena->used;
         BASE_ASSERT(((int64_t)result) % BASE_ALIGNEMENT == 0);
 
         ASAN_UNPOISON_MEMORY_REGION(result, size);
         arena->used = newUsed;
     }
-
-    return result;
 }
 
 static BaseColor baseMakeColor(float r, float g, float b, float a) {

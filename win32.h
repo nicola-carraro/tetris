@@ -41,6 +41,7 @@ struct Platform {
     ID3D11SamplerState *samplerState;
     ID3D11ShaderResourceView *textureView;
     ID3D11BlendState *blendState;
+	bool hasGraphics;
 
     #ifdef PLATFORM_SOUND
     IXAudio2 *xaudio;
