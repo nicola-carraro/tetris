@@ -1596,6 +1596,9 @@ static void tetrisDoMenu(Tetris *tetris, Platform *platform, PlatformInput input
 
         if (mouseEntered) {
             tetris->hoveredButton = buttonType;
+            if (tetris->pressedButton) {
+                tetris->pressedButton = buttonType;
+            }
         }
 
         if (tetris->hoveredButton == buttonType && mousePressed) {
