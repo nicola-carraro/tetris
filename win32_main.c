@@ -42,6 +42,8 @@
 #pragma comment(lib, "d3dcompiler")
 #pragma comment(lib, "Ole32")
 
+static Win32WindowProcParams GlobalWindowProcParams = {0};
+
 LRESULT CALLBACK windowProc(
     HWND window,
     UINT message,
@@ -50,89 +52,83 @@ LRESULT CALLBACK windowProc(
 ) {
     LRESULT result = 0;
 
-    Win32WindowProcParams *windowProcParams = (Win32WindowProcParams *)GetWindowLongPtrA(window, GWLP_USERDATA);
+    switch (message) {
+        case WM_PAINT: {
+            PAINTSTRUCT paint = {0};
+            BeginPaint(window, &paint);
+            win32Update(&GlobalWindowProcParams.state, GlobalWindowProcParams.platform, &GlobalWindowProcParams.input);
+            EndPaint(window, &paint);
+        } break;
 
-    if (!windowProcParams) {
-        result = DefWindowProcA(window, message, wParam, lParam);
-    } else {
-        switch (message) {
-            case WM_PAINT: {
-                PAINTSTRUCT paint = {0};
-                BeginPaint(window, &paint);
-                win32Update(&windowProcParams->state, windowProcParams->platform, &windowProcParams->input);
-                EndPaint(window, &paint);
-            } break;
+        case WM_SIZE: {
+            win32Update(&GlobalWindowProcParams.state, GlobalWindowProcParams.platform, &GlobalWindowProcParams.input);
+        } break;
 
-            case WM_SIZE: {
-                win32Update(&windowProcParams->state, windowProcParams->platform, &windowProcParams->input);
-            } break;
+        case WM_ENTERSIZEMOVE: {
+            GlobalWindowProcParams.input.isResizing = true;
+        } break;
 
-            case WM_ENTERSIZEMOVE: {
-                windowProcParams->input.isResizing = true;
-            } break;
+        case WM_EXITSIZEMOVE: {
+            GlobalWindowProcParams.input.isResizing = false;
+        } break;
 
-            case WM_EXITSIZEMOVE: {
-                windowProcParams->input.isResizing = false;
-            } break;
+        case WM_DESTROY: {
+            PostQuitMessage(0);
+        } break;
 
-            case WM_DESTROY: {
-                PostQuitMessage(0);
-            } break;
+        case WM_KEYUP:
+        case WM_KEYDOWN: {
+            PlatformControlType controlType = win32MapVirtualKeyToControl((int)wParam);
 
-            case WM_KEYUP:
-            case WM_KEYDOWN: {
-                PlatformControlType controlType = win32MapVirtualKeyToControl((int)wParam);
-
-                if (controlType) {
-                    bool wasDown = ((lParam >> 30) & 1);
-                    if (message == WM_KEYDOWN && !wasDown) {
-                        windowProcParams->input.controls[controlType].pressCount++;
-                    }
-
-                    if (message == WM_KEYUP) {
-                        windowProcParams->input.controls[controlType].releaseCount++;
-                    }
-                }
-            } break;
-
-            case WM_LBUTTONUP:
-            case WM_LBUTTONDOWN:
-            case WM_RBUTTONUP:
-            case WM_RBUTTONDOWN:
-            case WM_MBUTTONUP:
-            case WM_MBUTTONDOWN: {
-                PlatformControlType controlType = PlatformControlType_None;
-
-                switch(message) {
-                    case WM_LBUTTONUP:
-                    case WM_LBUTTONDOWN:
-                    {
-                        controlType = PlatformControlType_MouseLeft;
-                    } break;
-                    case WM_RBUTTONUP:
-                    case WM_RBUTTONDOWN:
-                    {
-                        controlType = PlatformControlType_MouseRight;
-                    } break;
-                    case WM_MBUTTONUP:
-                    case WM_MBUTTONDOWN:{
-                        controlType = PlatformControlType_MouseCenter;
-                    } break;
+            if (controlType) {
+                bool wasDown = ((lParam >> 30) & 1);
+                if (message == WM_KEYDOWN && !wasDown) {
+                    GlobalWindowProcParams.input.controls[controlType].pressCount++;
                 }
 
-                if (controlType) {
-                    bool isDownMessage = message == WM_LBUTTONDOWN || message == WM_RBUTTONDOWN || message == WM_MBUTTONDOWN;
-                    if (isDownMessage) {
-                        windowProcParams->input.controls[controlType].pressCount++;
-                    } else {
-                        windowProcParams->input.controls[controlType].releaseCount++;
-                    }
+                if (message == WM_KEYUP) {
+                    GlobalWindowProcParams.input.controls[controlType].releaseCount++;
                 }
-            } break;
-
-            default: {
-                result = DefWindowProcA(window, message, wParam, lParam);
             }
+        } break;
+
+        case WM_LBUTTONUP:
+        case WM_LBUTTONDOWN:
+        case WM_RBUTTONUP:
+        case WM_RBUTTONDOWN:
+        case WM_MBUTTONUP:
+        case WM_MBUTTONDOWN: {
+            PlatformControlType controlType = PlatformControlType_None;
+
+            switch(message) {
+                case WM_LBUTTONUP:
+                case WM_LBUTTONDOWN:
+                {
+                    controlType = PlatformControlType_MouseLeft;
+                } break;
+                case WM_RBUTTONUP:
+                case WM_RBUTTONDOWN:
+                {
+                    controlType = PlatformControlType_MouseRight;
+                } break;
+                case WM_MBUTTONUP:
+                case WM_MBUTTONDOWN:{
+                    controlType = PlatformControlType_MouseCenter;
+                } break;
+            }
+
+            if (controlType) {
+                bool isDownMessage = message == WM_LBUTTONDOWN || message == WM_RBUTTONDOWN || message == WM_MBUTTONDOWN;
+                if (isDownMessage) {
+                    GlobalWindowProcParams.input.controls[controlType].pressCount++;
+                } else {
+                    GlobalWindowProcParams.input.controls[controlType].releaseCount++;
+                }
+            }
+        } break;
+
+        default: {
+            result = DefWindowProcA(window, message, wParam, lParam);
         }
     }
 
@@ -150,16 +146,16 @@ int __stdcall WinMain(
     BASE_UNREFERENCED(showCommand);
 
     PlatformTexture texture = {0};
-    Win32WindowProcParams windowProcParams = {0};
 
     FILETIME systemTime = {0};
     GetSystemTimePreciseAsFileTime(&systemTime);
     DWORD seed = systemTime.dwLowDateTime;
 
-    if (APP_INIT(&windowProcParams.state, sizeof(Platform), seed, &windowProcParams.platform, &texture)){
+    if (APP_INIT(&GlobalWindowProcParams.state, sizeof(Platform), seed, &GlobalWindowProcParams.platform, &texture)){
+        xaudio2Init(GlobalWindowProcParams.platform);
         WNDCLASSEXA windowClass = {0};
 
-        windowProcParams.platform->performanceFrequency = win32QueryPerformanceFrequency();
+        GlobalWindowProcParams.platform->performanceFrequency = win32QueryPerformanceFrequency();
 
         char className[] = "tetris";
         {
@@ -178,7 +174,7 @@ int __stdcall WinMain(
         }
 
         if (RegisterClassExA(&windowClass)) {
-            windowProcParams.platform->window = CreateWindowExA(
+            GlobalWindowProcParams.platform->window = CreateWindowExA(
                 0,
                 className,
                 "Tetris",
@@ -190,16 +186,12 @@ int __stdcall WinMain(
                 0,
                 0,
                 instance,
-                &windowProcParams
+                0
             );
 
-            if (windowProcParams.platform->window) {
-                SetWindowLongPtrA(windowProcParams.platform->window, GWLP_USERDATA, (LONG_PTR) &windowProcParams);
-
-                xaudio2Init(windowProcParams.platform);
-
-                if (d3d11Init(windowProcParams.platform, texture)) {
-                    ShowWindow(windowProcParams.platform->window, SW_MAXIMIZE);
+            if (GlobalWindowProcParams.platform->window) {
+                if (d3d11Init(GlobalWindowProcParams.platform, texture)) {
+                    ShowWindow(GlobalWindowProcParams.platform->window, SW_MAXIMIZE);
 
                     for (BOOL running = 1; running;) {
                         MSG message = {0};
@@ -214,7 +206,7 @@ int __stdcall WinMain(
                         }
 
                         if (running) {
-                            win32Update(&windowProcParams.state, windowProcParams.platform, &windowProcParams.input);
+                            win32Update(&GlobalWindowProcParams.state, GlobalWindowProcParams.platform, &GlobalWindowProcParams.input);
                         }
                     }
                 }

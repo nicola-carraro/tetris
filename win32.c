@@ -122,6 +122,8 @@ static PlatformControlType win32MapVirtualKeyToControl(int virtualKey) {
 static void win32Update(AppState *state, Platform *platform, PlatformInput *input) {
     BASE_ASSERT(state);
     BASE_ASSERT(platform);
+    BASE_ASSERT(input);
+
     RECT rect = {0};
     GetClientRect(platform->window, &rect);
     UINT newWidth = rect.right - rect.left;
