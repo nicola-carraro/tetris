@@ -157,7 +157,7 @@ int __stdcall WinMain(
 
         GlobalWindowProcParams.platform->performanceFrequency = win32QueryPerformanceFrequency();
 
-        char className[] = "tetris";
+        char className[] = APP_TITLE;
         {
             windowClass.cbSize = sizeof(windowClass);
             windowClass.style = 0;
@@ -177,7 +177,7 @@ int __stdcall WinMain(
             GlobalWindowProcParams.platform->window = CreateWindowExA(
                 0,
                 className,
-                "Tetris",
+                APP_TITLE,
                 WS_OVERLAPPEDWINDOW | WS_MAXIMIZE,
                 CW_USEDEFAULT,
                 CW_USEDEFAULT,
