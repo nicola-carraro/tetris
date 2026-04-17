@@ -70,10 +70,6 @@ static bool platformReadEntireFile(char *path, BaseArena *arena, BaseReadResult 
     return result;
 }
 
-static void platformMemset(void * pointer, int value, size_t count) {
-    memset(pointer, value, count);
-}
-
 static void *platformAllocate(size_t size) {
     void *result = VirtualAlloc(0, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
